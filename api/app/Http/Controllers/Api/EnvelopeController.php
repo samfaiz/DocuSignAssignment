@@ -243,7 +243,7 @@ class EnvelopeController extends Controller
         $sealed = $envelope->sealedDocument;
         abort_unless($sealed, 404, 'This envelope has not been sealed yet.');
 
-        return Storage::disk('s3')->download(
+        return Storage::disk(config('signing.storage_disk'))->download(
             $sealed->storage_key,
             'signed-' . $envelope->document->filename,
             ['Content-Type' => 'application/pdf']

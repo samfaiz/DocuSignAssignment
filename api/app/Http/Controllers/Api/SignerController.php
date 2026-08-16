@@ -241,7 +241,7 @@ class SignerController extends Controller
 
         $png = base64_decode($result['png_b64']);
         $key = sprintf('signatures/%d/%s.png', $recipient->id, Str::uuid());
-        Storage::disk('s3')->put($key, $png);
+        Storage::disk(config('signing.storage_disk'))->put($key, $png);
 
         $asset = SignatureAsset::create([
             'recipient_id' => $recipient->id,
@@ -423,7 +423,7 @@ class SignerController extends Controller
             actor: $recipient->email
         );
 
-        return Storage::disk('s3')->download(
+        return Storage::disk(config('signing.storage_disk'))->download(
             $recipient->envelope->document->storage_key,
             $recipient->envelope->document->filename,
             ['Content-Type' => 'application/pdf']

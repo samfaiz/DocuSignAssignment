@@ -66,7 +66,7 @@ class DemoController extends Controller
         $info = $this->signService->inspect($contents);
 
         $key = sprintf('documents/%d/%s.pdf', $admin->id, Str::uuid());
-        Storage::disk('s3')->put($key, $contents);
+        Storage::disk(config('signing.storage_disk'))->put($key, $contents);
 
         $envelope = DB::transaction(function () use ($admin, $key, $info) {
             $document = Document::create([

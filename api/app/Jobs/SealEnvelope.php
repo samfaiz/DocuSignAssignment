@@ -61,7 +61,7 @@ class SealEnvelope implements ShouldQueue
             return;
         }
 
-        $original = Storage::disk('s3')->get($envelope->document->storage_key);
+        $original = Storage::disk(config('signing.storage_disk'))->get($envelope->document->storage_key);
 
         $result = $signService->finalize(
             pdf: $original,
@@ -72,7 +72,7 @@ class SealEnvelope implements ShouldQueue
 
         $sealedPdf = base64_decode($result['pdf_b64']);
         $key = sprintf('sealed/%s/%s.pdf', $envelope->uuid, Str::uuid());
-        Storage::disk('s3')->put($key, $sealedPdf);
+        Storage::disk(config('signing.storage_disk'))->put($key, $sealedPdf);
 
         SealedDocument::create([
             'envelope_id' => $envelope->id,
@@ -137,7 +137,7 @@ class SealEnvelope implements ShouldQueue
             ];
 
             if ($value->asset) {
-                $png = Storage::disk('s3')->get($value->asset->storage_key);
+                $png = Storage::disk(config('signing.storage_disk'))->get($value->asset->storage_key);
                 $placement['image_b64'] = base64_encode($png);
             } elseif ($value->text_value !== null) {
                 $placement['text'] = $value->text_value;

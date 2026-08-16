@@ -61,7 +61,7 @@ class SignedCopy extends Mailable
 
         return [
             Attachment::fromData(
-                fn () => Storage::disk('s3')->get($sealed->storage_key),
+                fn () => Storage::disk(config('signing.storage_disk'))->get($sealed->storage_key),
                 $this->filename
             )->withMime('application/pdf'),
         ];

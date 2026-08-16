@@ -65,7 +65,7 @@ class DocumentController extends Controller
             Str::uuid()
         );
 
-        Storage::disk('s3')->put($key, $contents);
+        Storage::disk(config('signing.storage_disk'))->put($key, $contents);
 
         $document = Document::create([
             'owner_id' => $request->user()->id,
@@ -87,7 +87,7 @@ class DocumentController extends Controller
     {
         abort_unless($document->owner_id === $request->user()->id, 403);
 
-        return Storage::disk('s3')->download(
+        return Storage::disk(config('signing.storage_disk'))->download(
             $document->storage_key,
             $document->filename,
             ['Content-Type' => 'application/pdf']

@@ -100,6 +100,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Where documents and signature images are stored
+    |--------------------------------------------------------------------------
+    |
+    | S3 (or MinIO) is the right answer at any real scale: versioning, lifecycle
+    | rules, server-side encryption and pre-signed URLs come for free. But a
+    | single-server deployment without an object store is a perfectly reasonable
+    | place to start, and 'local' works there with no other changes.
+    |
+    | Whatever is chosen, files land outside the web root and are only ever
+    | served through the application, never by path.
+    |
+    */
+    'storage_disk' => env('SIGN_STORAGE_DISK', env('FILESYSTEM_DISK', 'local')),
+
+    /*
+    |--------------------------------------------------------------------------
     | Signed URL lifetime for document downloads
     |--------------------------------------------------------------------------
     */
