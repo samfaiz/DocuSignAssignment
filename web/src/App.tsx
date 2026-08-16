@@ -7,6 +7,7 @@ import EnvelopeDetail from './pages/EnvelopeDetail'
 import Envelopes from './pages/Envelopes'
 import Login from './pages/Login'
 import NewEnvelope from './pages/NewEnvelope'
+import Settings from './pages/Settings'
 import Sign from './pages/Sign'
 import Verify from './pages/Verify'
 
@@ -48,6 +49,9 @@ function AdminShell({ children }: { children: React.ReactNode }) {
             </Link>
             <Link to="/verify" className="text-slate-600 hover:text-slate-900">
               Verify
+            </Link>
+            <Link to="/settings" className="text-slate-600 hover:text-slate-900">
+              Settings
             </Link>
             <button
               onClick={signOut}
@@ -124,6 +128,16 @@ function AppRoutes() {
             <RequireAdmin>
               <AdminShell>
                 <Verify />
+              </AdminShell>
+            </RequireAdmin>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <RequireAdmin>
+              <AdminShell>
+                <Settings />
               </AdminShell>
             </RequireAdmin>
           }

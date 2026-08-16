@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Services\MailConfigurator;
 use App\Services\SignServiceClient;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
@@ -27,5 +28,10 @@ class AppServiceProvider extends ServiceProvider
         if ($url = config('app.url')) {
             URL::forceRootUrl($url);
         }
+
+        // Layers admin-managed SMTP settings over the .env defaults. Runs here
+        // rather than in a middleware so it also applies inside the queue
+        // worker, which is where mail is actually sent.
+        MailConfigurator::apply();
     }
 }

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DemoController;
 use App\Http\Controllers\Api\DocumentController;
 use App\Http\Controllers\Api\EnvelopeController;
+use App\Http\Controllers\Api\MailSettingController;
 use App\Http\Controllers\Api\SignerController;
 use App\Http\Controllers\Api\VerificationController;
 use Illuminate\Support\Facades\Route;
@@ -23,6 +24,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/documents', [DocumentController::class, 'index']);
     Route::post('/documents', [DocumentController::class, 'store']);
     Route::get('/documents/{document}/download', [DocumentController::class, 'download']);
+
+    Route::get('/settings/mail', [MailSettingController::class, 'show']);
+    Route::put('/settings/mail', [MailSettingController::class, 'update']);
+    Route::post('/settings/mail/test', [MailSettingController::class, 'test'])
+        ->middleware('throttle:6,1');
 
     Route::get('/envelopes', [EnvelopeController::class, 'index']);
     Route::post('/envelopes', [EnvelopeController::class, 'store']);

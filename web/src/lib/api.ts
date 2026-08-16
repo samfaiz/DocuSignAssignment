@@ -146,6 +146,26 @@ export const api = {
     form.append('file', file)
     return request<VerificationResult>('/verify', { method: 'POST', body: form })
   },
+
+  mailSettings: () =>
+    request<{ settings: MailSettings; presets: Record<string, MailPreset> }>(
+      '/settings/mail',
+      { auth: true },
+    ),
+
+  updateMailSettings: (payload: MailSettingsInput) =>
+    request<{ settings: MailSettings }>('/settings/mail', {
+      method: 'PUT',
+      body: payload,
+      auth: true,
+    }),
+
+  testMail: (to: string) =>
+    request<{ ok: boolean; message: string; hint?: string }>('/settings/mail/test', {
+      method: 'POST',
+      body: { to },
+      auth: true,
+    }),
 }
 
 /* ------------------------------------------------------------------- demo */
@@ -239,6 +259,40 @@ export type DocumentRecord = {
 }
 
 export type Paginated<T> = { data: T[]; total: number; current_page: number }
+
+export type MailSettings = {
+  mailer: string
+  host: string | null
+  port: number | null
+  username: string | null
+  encryption: string | null
+  from_address: string | null
+  from_name: string | null
+  // The password itself is never sent back — only whether one is stored.
+  has_password: boolean
+  is_configured: boolean
+  last_tested_at: string | null
+  last_test_ok: boolean | null
+  last_test_error: string | null
+}
+
+export type MailPreset = {
+  label: string
+  host: string
+  port: number
+  encryption: string | null
+  note: string
+}
+
+export type MailSettingsInput = {
+  host: string
+  port: number
+  username?: string | null
+  password?: string | null
+  encryption?: string | null
+  from_address: string
+  from_name: string
+}
 
 export type FieldType = 'signature' | 'initial' | 'date' | 'text' | 'checkbox'
 
