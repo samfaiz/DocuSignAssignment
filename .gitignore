@@ -1,0 +1,57 @@
+# ---------------------------------------------------------------- secrets
+# Never commit these. api/.gitignore and web/.gitignore cover their own
+# subtrees, but the PKI directory has no framework default protecting it and
+# holds real private keys.
+.env
+.env.*
+!.env.example
+
+# The generated development PKI: CA private key, signing key, PKCS#12 bundle
+# and the issued-certificate database. pki/scripts and pki/openssl.cnf are the
+# recipe and are committed; the output of running it never is.
+pki/out/
+
+# ------------------------------------------------------------ dependencies
+/api/vendor/
+/web/node_modules/
+/sign-service/.venv/
+node_modules/
+vendor/
+
+# ------------------------------------------------------------- build output
+/web/dist/
+/api/public/build/
+/api/public/hot
+
+# --------------------------------------------------------------- generated
+/sign-service/tmp/
+/api/tests/e2e/*.pdf
+# The assignment report is a deliverable, so it stays in the repo even though
+# docs/build_report.py can regenerate it.
+!/docs/SignDesk-Assignment.pdf
+__pycache__/
+*.py[cod]
+
+# ----------------------------------------------------------------- runtime
+/api/storage/*.key
+/api/storage/pail
+/api/storage/logs/*
+!/api/storage/logs/.gitkeep
+/api/storage/framework/cache/data/*
+/api/storage/framework/sessions/*
+/api/storage/framework/views/*
+/api/bootstrap/cache/*
+!/api/bootstrap/cache/.gitkeep
+
+# ---------------------------------------------------------------- tooling
+.phpunit.result.cache
+.phpunit.cache/
+/.idea
+/.vscode
+/.fleet
+*.swp
+
+# ------------------------------------------------------------------- os
+.DS_Store
+Thumbs.db
+desktop.ini

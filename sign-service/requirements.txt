@@ -1,0 +1,14 @@
+fastapi>=0.115
+uvicorn[standard]>=0.32
+python-multipart>=0.0.20
+
+# PAdES engine. The reason this service exists at all: no free PHP library
+# reaches PAdES B-LT/B-LTA (see /docs). pyHanko covers B-B, B-T, B-LT, B-LTA.
+pyHanko>=0.25
+pyhanko-certvalidator>=0.26
+
+# PDF page manipulation for compositing signature images and appending the
+# certificate of completion.
+pypdf>=5.1
+reportlab>=4.2
+pillow>=11.0

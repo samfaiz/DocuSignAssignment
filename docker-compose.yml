@@ -1,0 +1,108 @@
+name: signdesk
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sd_postgres
+    environment:
+      POSTGRES_DB: signdesk
+      POSTGRES_USER: signdesk
+      POSTGRES_PASSWORD: signdesk
+    # 5432 and 5433 are commonly taken by a native PostgreSQL install on the
+    # developer's machine, and a native server answering instead of this one
+    # fails as an authentication error rather than a connection error, which is
+    # a confusing thing to debug. Published high to stay out of the way.
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signdesk -d signdesk"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: sd_redis
+    ports:
+      - "63790:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # S3-compatible object storage. PDFs never live in the database.
+  minio:
+    image: minio/minio:latest
+    container_name: sd_minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: signdesk
+      MINIO_ROOT_PASSWORD: signdesk123
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Creates the bucket on first boot so the API has somewhere to write.
+  minio-init:
+    image: minio/mc:latest
+    container_name: sd_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 signdesk signdesk123 &&
+      mc mb --ignore-existing local/signdesk &&
+      mc anonymous set none local/signdesk &&
+      echo 'bucket ready'
+      "
+
+  # Catches all outbound mail in development. UI at http://localhost:8025
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: sd_mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+  # Serves the dev CA certificate and CRL over HTTP. PAdES B-LT/B-LTA needs a
+  # reachable CRL distribution point to embed revocation data — a bare
+  # self-signed certificate cannot reach those levels.
+  pki-web:
+    image: nginx:alpine
+    container_name: sd_pki
+    ports:
+      - "8080:80"
+    volumes:
+      - ./pki/out:/usr/share/nginx/html:ro
+
+  # PAdES sealing engine. No public ingress in production — reachable only
+  # from the API over the internal network, authenticated with a shared HMAC.
+  sign-service:
+    build: ./sign-service
+    container_name: sd_sign
+    environment:
+      SIGN_SERVICE_SECRET: ${SIGN_SERVICE_SECRET:-dev-shared-secret-change-me}
+      TSA_URL: ${TSA_URL:-https://freetsa.org/tsr}
+      PKI_DIR: /pki
+      SIGNER_P12_PASSPHRASE: ${SIGNER_P12_PASSPHRASE:-signdesk}
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./pki/out:/pki:ro
+    depends_on:
+      - pki-web
+
+volumes:
+  pgdata:
+  miniodata:

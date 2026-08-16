@@ -1,0 +1,24 @@
+# Normalise line endings for text, but never touch binaries.
+#
+# Without this, Git on Windows applies CRLF conversion to anything it guesses is
+# text. PDFs in particular start with enough ASCII to be misdetected, and a
+# single rewritten newline corrupts the file - which for a signed PDF also
+# breaks its signature.
+* text=auto eol=lf
+
+*.pdf   binary
+*.ttf   binary
+*.otf   binary
+*.woff  binary
+*.woff2 binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.ico   binary
+*.p12   binary
+*.pfx   binary
+*.der   binary
+*.crl   binary
+
+# Shell scripts must keep LF or they will not run on Linux.
+*.sh text eol=lf

@@ -1,0 +1,128 @@
+<?php
+
+return [
+    /*
+    |--------------------------------------------------------------------------
+    | Sealing service
+    |--------------------------------------------------------------------------
+    |
+    | The PAdES engine runs as a separate Python service because no free PHP
+    | library reaches PAdES B-LT/B-LTA: FPDI's open-source parser cannot read
+    | PDF 1.5+ cross-reference streams, TCPDF's setSignature() emits only a
+    | basic adbe.pkcs7.detached signature with no DSS or document-timestamp
+    | chain, and SetaPDF-Signer is commercially licensed. See /docs.
+    |
+    */
+    'service' => [
+        'url' => env('SIGN_SERVICE_URL', 'http://127.0.0.1:8001'),
+        'secret' => env('SIGN_SERVICE_SECRET'),
+        'timeout' => (int) env('SIGN_SERVICE_TIMEOUT', 180),
+    ],
+
+    /*
+    | Requested PAdES level. The service degrades honestly if the timestamp
+    | authority is unreachable and reports what it actually achieved, which is
+    | what gets stored and printed on the certificate of completion.
+    */
+    'pades_level' => env('SIGN_PADES_LEVEL', 'b-lta'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Signing links
+    |--------------------------------------------------------------------------
+    */
+    'token' => [
+        'bytes' => 32,                                    // 256 bits of entropy
+        'ttl_days' => (int) env('SIGN_TOKEN_TTL_DAYS', 30),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | One-time passcode
+    |--------------------------------------------------------------------------
+    |
+    | Possession of the emailed link only proves someone can read that inbox —
+    | including anyone it was forwarded to. The OTP is the step that ties the
+    | ceremony to the intended person.
+    |
+    */
+    'otp' => [
+        'length' => 6,
+        'ttl_minutes' => (int) env('SIGN_OTP_TTL_MINUTES', 10),
+        'max_attempts' => (int) env('SIGN_OTP_MAX_ATTEMPTS', 5),
+        'lockout_minutes' => (int) env('SIGN_OTP_LOCKOUT_MINUTES', 15),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Uploaded signature images
+    |--------------------------------------------------------------------------
+    */
+    'upload' => [
+        'max_bytes' => 2 * 1024 * 1024,
+        // Checked against the file's magic bytes, never its extension or the
+        // Content-Type the browser claims.
+        'allowed_mimes' => ['image/png', 'image/jpeg'],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Typed signature fonts
+    |--------------------------------------------------------------------------
+    |
+    | All libre (SIL OFL / Apache 2.0) so they ship with the product rather than
+    | being fetched from a font CDN during the signing ceremony. Rendering
+    | happens server-side, so the artefact embedded in the sealed PDF does not
+    | depend on the signer's installed fonts.
+    |
+    */
+    'fonts' => [
+        'great-vibes' => 'Great Vibes',
+        'dancing-script' => 'Dancing Script',
+        'homemade-apple' => 'Homemade Apple',
+        'caveat' => 'Caveat',
+        'sacramento' => 'Sacramento',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Electronic records disclosure
+    |--------------------------------------------------------------------------
+    |
+    | The US ESIGN Act requires affirmative consent to transact electronically.
+    | What matters in a dispute is which text was on screen, so the version and
+    | a hash of the text are stored with every consent.
+    |
+    */
+    'disclosure' => [
+        'version' => env('ESIGN_DISCLOSURE_VERSION', 'esign-disclosure-v1'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Signed URL lifetime for document downloads
+    |--------------------------------------------------------------------------
+    */
+    'download_url_ttl_minutes' => 5,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Reviewer demo mode
+    |--------------------------------------------------------------------------
+    |
+    | Lets someone evaluating this project provision a signing link and read the
+    | one-time passcode back over the API, so they never have to open a terminal
+    | or dig through a mail catcher.
+    |
+    | That second capability hands out a live authentication factor, so it is
+    | genuinely dangerous: with it on, anyone who can reach the API can complete
+    | somebody else's signing ceremony. It defaults to the local environment
+    | only, the routes refuse to register anywhere else, and the passcode is
+    | cached in plaintext exclusively while this is enabled.
+    |
+    */
+    'demo' => [
+        'enabled' => (bool) env('DEMO_MODE', env('APP_ENV') === 'local'),
+        'sample_pdf' => resource_path('demo/consulting-agreement.pdf'),
+    ],
+];

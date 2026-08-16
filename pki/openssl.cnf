@@ -1,0 +1,91 @@
+# Development PKI for SignDesk.
+#
+# This exists because PAdES B-LT / B-LTA require *embeddable revocation data*.
+# A bare self-signed certificate has no CRL distribution point, so pyHanko's
+# `embed_validation_info=True` cannot reach those levels with one. So we run a
+# real (if tiny) CA that publishes a real CRL.
+#
+# In production this whole directory is replaced by a document-signing
+# certificate from a commercial CA (eMudhra / GlobalSign / Certum) or, for
+# India's IT Act s.3A recognition, by a CCA-licensed ESP.
+
+[ ca ]
+default_ca = CA_default
+
+[ CA_default ]
+dir               = ./out
+database          = $dir/index.txt
+serial            = $dir/serial
+crlnumber         = $dir/crlnumber
+new_certs_dir     = $dir/newcerts
+certificate       = $dir/ca.pem
+private_key       = $dir/ca.key
+default_md        = sha256
+default_days      = 825
+default_crl_days  = 30
+policy            = policy_any
+email_in_dn       = yes
+unique_subject    = no
+copy_extensions   = none
+
+[ policy_any ]
+countryName            = optional
+stateOrProvinceName    = optional
+organizationName       = optional
+organizationalUnitName = optional
+commonName             = supplied
+emailAddress           = optional
+
+[ req ]
+default_bits       = 2048
+default_md         = sha256
+string_mask        = utf8only
+prompt             = no
+distinguished_name = ca_dn
+x509_extensions    = v3_ca
+
+[ ca_dn ]
+C  = IN
+O  = SignDesk Development
+CN = SignDesk Dev Signing CA
+
+# Selected with `openssl req -section req_signer`. The DN lives here rather than
+# in a -subj flag because Git Bash on Windows rewrites /C=IN/... into a
+# filesystem path before openssl ever sees it.
+[ req_signer ]
+default_bits       = 2048
+default_md         = sha256
+string_mask        = utf8only
+prompt             = no
+distinguished_name = signer_dn
+
+[ signer_dn ]
+C            = IN
+O            = SignDesk Development
+CN           = SignDesk Document Signer
+emailAddress = signer@signdesk.local
+
+[ v3_ca ]
+basicConstraints     = critical, CA:true, pathlen:0
+keyUsage             = critical, keyCertSign, cRLSign
+subjectKeyIdentifier = hash
+
+# Document-signing leaf.
+#   keyUsage digitalSignature + nonRepudiation is what a signature certificate
+#   must carry; nonRepudiation is the bit that matters for a signature intended
+#   to bind a person rather than secure a transport channel.
+#   emailProtection is the EKU real document-signing certificates ship with.
+[ v3_signer ]
+basicConstraints       = critical, CA:false
+keyUsage               = critical, digitalSignature, nonRepudiation
+extendedKeyUsage       = emailProtection
+subjectKeyIdentifier   = hash
+authorityKeyIdentifier = keyid:always
+crlDistributionPoints  = @crl_dp
+
+# Two URIs on purpose: the first resolves from the host (Adobe Reader, the
+# test suite), the second resolves from inside the Docker network
+# (the sign-service container). Validators try each in turn.
+[ crl_dp ]
+URI.1 = http://localhost:8080/crl.der
+URI.2 = http://pki-web/crl.der
