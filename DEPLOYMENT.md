@@ -212,19 +212,16 @@ QUEUE_CONNECTION=redis
 CACHE_STORE=redis
 SESSION_DRIVER=database
 
-FILESYSTEM_DISK=s3
-AWS_ACCESS_KEY_ID=...
-AWS_SECRET_ACCESS_KEY=...
-AWS_DEFAULT_REGION=ap-south-1
-AWS_BUCKET=signdesk-documents
-AWS_USE_PATH_STYLE_ENDPOINT=false
+# Local disk needs no object store and is a fine place to start. Files land
+# in api/storage/app, outside the web root, and are only ever served through
+# the application. Switch to s3 later by setting the AWS_* keys as well.
+FILESYSTEM_DISK=local
+SIGN_STORAGE_DISK=local
 
+# Only a fallback. SMTP is configured from the admin interface at /settings,
+# stored in the database with the password encrypted, and layered over these
+# values at boot. Leave them as-is unless you want a pre-configured default.
 MAIL_MAILER=smtp
-MAIL_HOST=email-smtp.ap-south-1.amazonaws.com
-MAIL_PORT=587
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
-MAIL_ENCRYPTION=tls
 MAIL_FROM_ADDRESS="no-reply@example.com"
 
 SIGN_SERVICE_URL=http://127.0.0.1:8001
@@ -389,7 +386,10 @@ Go through this before sharing the URL.
 - [ ] Real document-signing certificate in place; the development CA deleted
 - [ ] The certificate's CRL distribution point reachable from the server
 - [ ] `pki/out/signer.p12` is `chmod 640`, owned `root:www-data`
-- [ ] S3 bucket is private with no public read
+- [ ] SMTP configured at `/settings` and the test message actually received —
+      without it no signer can be sent a link or a passcode
+- [ ] Storage directory writable by `www-data`, or an S3 bucket that is private
+      with no public read
 - [ ] HTTPS enforced, HTTP redirecting
 - [ ] Queue worker running — check with `systemctl status signdesk-queue`
 - [ ] Database and object storage both backed up
