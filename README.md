@@ -259,3 +259,5 @@ docker exec sd_postgres psql -U signdesk -d signdesk -c "CREATE DATABASE signdes
   correctly, and the adopted signature previews in place.
 - Single-signer routing is implemented and tested; multi-signer routing order is
   enforced server-side but has not been exercised end to end.
+#   D o c u S i g n A s s i g n m e n t  
+ 
