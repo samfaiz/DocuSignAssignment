@@ -165,6 +165,25 @@ def build(payload: dict[str, Any]) -> bytes:
         [width * 0.21, width * 0.27, width * 0.19, width * 0.21, width * 0.12],
     ))
 
+    # --- Location -----------------------------------------------------------
+    if any(r.get("location") for r in recipients):
+        story.append(Paragraph("Location reported by signer", st["h2"]))
+        story.append(_grid_table(
+            ["Signer", "Location"],
+            [[r.get("name", "—"), r.get("location", "Not requested")]
+             for r in recipients],
+            st,
+            [width * 0.30, width * 0.70],
+        ))
+        story.append(Paragraph(
+            "Location is optional and was supplied by the signer's browser after "
+            "they granted permission. Unlike the IP address above, which the server "
+            "observed, these coordinates are self-reported and can be altered by a "
+            "determined signer — they corroborate the rest of the record rather "
+            "than standing on their own.",
+            st["note"],
+        ))
+
     # --- Consent ------------------------------------------------------------
     consents = [r for r in recipients if r.get("consent_accepted_at")]
     if consents:

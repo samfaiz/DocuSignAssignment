@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
+import LocationConsent from '../components/LocationConsent'
 import PdfViewer, { type PageBox } from '../components/PdfViewer'
 import SignaturePad, { type AdoptedSignature } from '../components/SignaturePad'
 import {
@@ -382,6 +383,14 @@ export default function Sign() {
                   />
                 )}
               </section>
+
+              <LocationConsent
+                current={payload.recipient.location_consent ?? 'not_asked'}
+                onDecision={async (decision) => {
+                  await signerApi.shareLocation(uuid, token, decision)
+                  await load()
+                }}
+              />
 
               {textFields.length > 0 && (
                 <section className="rounded-lg border border-slate-200 bg-white p-4">

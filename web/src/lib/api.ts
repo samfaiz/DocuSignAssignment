@@ -229,6 +229,21 @@ export const signerApi = {
       body: { accepted: true },
     }),
 
+  shareLocation: (
+    uuid: string,
+    token: string,
+    payload: {
+      consent: 'granted' | 'denied' | 'unsupported' | 'failed'
+      latitude?: number
+      longitude?: number
+      accuracy?: number
+    },
+  ) =>
+    request<{ location_consent: string; summary: string }>(
+      `/sign/${uuid}/location?t=${token}`,
+      { method: 'POST', body: payload },
+    ),
+
   createSignature: (
     uuid: string,
     token: string,
@@ -429,6 +444,7 @@ export type SignerPayload = {
     signed_at: string | null
     otp_verified: boolean
     has_consented: boolean
+    location_consent: string | null
   }
   fields: SignerField[]
   my_turn: boolean

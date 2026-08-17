@@ -177,6 +177,7 @@ class SealEnvelope implements ShouldQueue
                 'auth_method' => $r->auth_method ?? 'Email link',
                 'signed_at' => $r->signed_at?->format('Y-m-d H:i:s') ?? '—',
                 'ip' => $r->last_ip ?? '—',
+                'location' => $r->locationSummary(),
                 'consent_accepted_at' => $r->consent?->accepted_at?->format('Y-m-d H:i:s'),
                 'consent_version' => $r->consent?->disclosure_version,
                 'consent_ip' => $r->consent?->ip,

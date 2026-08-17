@@ -88,6 +88,7 @@ class SignerController extends Controller
                 'signed_at' => $recipient->signed_at,
                 'otp_verified' => $recipient->otp_verified,
                 'has_consented' => $recipient->consent !== null,
+                'location_consent' => $recipient->location_consent,
             ],
             // Scoped to this recipient. Another signer's fields are not merely
             // hidden in the UI — they never leave the database.
@@ -198,6 +199,59 @@ class SignerController extends Controller
         ], recipient: $recipient, request: $request, actor: $recipient->email);
 
         return response()->json(['message' => 'Consent recorded.']);
+    }
+
+    /**
+     * Record the signer's decision about sharing their location.
+     *
+     * Always optional. Refusing must never block signing — conditioning a
+     * signature on surrendering location data would be coercive, and a consent
+     * given under that condition is worth very little as evidence anyway.
+     *
+     * The decision is recorded either way. "Declined" is a meaningful entry in
+     * the trail; it is the absence of any entry that tells you nothing.
+     */
+    public function shareLocation(Request $request, string $uuid): JsonResponse
+    {
+        $recipient = $this->requireVerified($request, $uuid);
+
+        $data = $request->validate([
+            'consent' => ['required', 'in:granted,denied,unsupported,failed'],
+            'latitude' => ['required_if:consent,granted', 'nullable', 'numeric', 'between:-90,90'],
+            'longitude' => ['required_if:consent,granted', 'nullable', 'numeric', 'between:-180,180'],
+            'accuracy' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+        ]);
+
+        $granted = $data['consent'] === Recipient::LOCATION_GRANTED;
+
+        $recipient->forceFill([
+            'location_consent' => $data['consent'],
+            'latitude' => $granted ? $data['latitude'] : null,
+            'longitude' => $granted ? $data['longitude'] : null,
+            'location_accuracy_m' => $granted && isset($data['accuracy'])
+                ? (int) round($data['accuracy'])
+                : null,
+            'location_captured_at' => Carbon::now('UTC'),
+        ])->save();
+
+        // Coordinates are logged rounded. The full precision stays on the
+        // recipient record for the certificate; the audit trail is shown to
+        // every party, and a metre-accurate home address does not need to be
+        // repeated in a document everyone receives.
+        $this->audit->record($recipient->envelope, AuditEvent::RECIPIENT_LOCATION, [
+            'consent' => $data['consent'],
+            'source' => 'browser geolocation',
+            'reported' => $granted,
+            'approximate' => $granted
+                ? sprintf('%.2f, %.2f', $data['latitude'], $data['longitude'])
+                : null,
+            'accuracy_m' => $granted ? ($data['accuracy'] ?? null) : null,
+        ], recipient: $recipient, request: $request, actor: $recipient->email);
+
+        return response()->json([
+            'location_consent' => $recipient->location_consent,
+            'summary' => $recipient->locationSummary(),
+        ]);
     }
 
     /** Create a signature artefact: drawn, uploaded, or typed. */

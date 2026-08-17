@@ -28,7 +28,25 @@ class Recipient extends Model
         'otp_hash', 'otp_expires_at', 'otp_attempts', 'otp_locked_until',
         'otp_verified', 'viewed_at', 'signed_at', 'declined_at',
         'decline_reason', 'last_ip', 'last_user_agent',
+        'location_consent', 'latitude', 'longitude',
+        'location_accuracy_m', 'location_captured_at',
     ];
+
+    /**
+     * Mirrors the column default so a freshly created model reports the same
+     * state as one read back from the database. Without it the attribute is
+     * null in memory until something reloads the row, and "never asked" and
+     * "unknown" become indistinguishable at exactly the moment they matter.
+     */
+    protected $attributes = [
+        'location_consent' => 'not_asked',
+    ];
+
+    public const LOCATION_NOT_ASKED = 'not_asked';
+    public const LOCATION_GRANTED = 'granted';
+    public const LOCATION_DENIED = 'denied';
+    public const LOCATION_UNSUPPORTED = 'unsupported';
+    public const LOCATION_FAILED = 'failed';
 
     /**
      * Token and OTP hashes must never reach an API response — a signer's own
@@ -46,7 +64,39 @@ class Recipient extends Model
             'viewed_at' => 'datetime',
             'signed_at' => 'datetime',
             'declined_at' => 'datetime',
+            'latitude' => 'float',
+            'longitude' => 'float',
+            'location_captured_at' => 'datetime',
         ];
+    }
+
+    public function hasLocation(): bool
+    {
+        return $this->latitude !== null && $this->longitude !== null;
+    }
+
+    /**
+     * How the location should be described on the certificate of completion.
+     *
+     * Always qualified as reported rather than verified: these coordinates come
+     * from the signer's browser, not from anything the server observed.
+     */
+    public function locationSummary(): string
+    {
+        return match ($this->location_consent) {
+            self::LOCATION_GRANTED => $this->hasLocation()
+                ? sprintf(
+                    '%.5f, %.5f (reported, +/-%s m)',
+                    $this->latitude,
+                    $this->longitude,
+                    $this->location_accuracy_m ?? '?'
+                )
+                : 'Shared, but no coordinates recorded',
+            self::LOCATION_DENIED => 'Declined by signer',
+            self::LOCATION_UNSUPPORTED => 'Not available on signer device',
+            self::LOCATION_FAILED => 'Attempted, device could not determine it',
+            default => 'Not requested',
+        };
     }
 
     public function envelope(): BelongsTo
