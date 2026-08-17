@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\MailConfigurator;
 use App\Services\SignServiceClient;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 
@@ -33,5 +34,12 @@ class AppServiceProvider extends ServiceProvider
         // rather than in a middleware so it also applies inside the queue
         // worker, which is where mail is actually sent.
         MailConfigurator::apply();
+
+        // ...and again before each queued job. A worker boots once and then
+        // runs for days, so without this an operator could save working SMTP
+        // credentials and still watch every email fail, with nothing in the
+        // interface hinting that a process restart was the missing step.
+        // Reads from cache, which the settings screen clears on save.
+        Queue::before(fn () => MailConfigurator::apply());
     }
 }
