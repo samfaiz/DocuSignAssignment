@@ -107,6 +107,14 @@ export const api = {
     })
   },
 
+  /** Uses the bundled sample agreement, so no file of your own is needed. */
+  useSampleDocument: () =>
+    request<{ document: DocumentRecord }>('/documents/sample', {
+      method: 'POST',
+      body: {},
+      auth: true,
+    }),
+
   documentBlob: (id: number) =>
     request<Blob>(`/documents/${id}/download`, { auth: true, raw: true }),
 

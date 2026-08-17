@@ -48,6 +48,15 @@ export default function NewEnvelope() {
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  /** Shared by both entry points: fetch the stored PDF and render it. */
+  async function adoptDocument(record: DocumentRecord, suggestedSubject: string) {
+    setDocument(record)
+    if (!subject) setSubject(suggestedSubject.replace(/\.pdf$/i, ''))
+
+    const blob = await api.documentBlob(record.id)
+    setPdfData(await blob.arrayBuffer())
+  }
+
   async function upload(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]
     if (!file) return
@@ -56,14 +65,25 @@ export default function NewEnvelope() {
     setError(null)
     try {
       const { document: record } = await api.uploadDocument(file)
-      setDocument(record)
-      if (!subject) setSubject(file.name.replace(/\.pdf$/i, ''))
-
-      const blob = await api.documentBlob(record.id)
-      setPdfData(await blob.arrayBuffer())
+      await adoptDocument(record, file.name)
     } catch (e) {
       setError(
         e instanceof ApiError ? (e.fieldError('file') ?? e.message) : 'Upload failed.',
+      )
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  async function useSample() {
+    setUploading(true)
+    setError(null)
+    try {
+      const { document: record } = await api.useSampleDocument()
+      await adoptDocument(record, 'Consulting Services Agreement')
+    } catch (e) {
+      setError(
+        e instanceof ApiError ? e.message : 'Could not load the sample document.',
       )
     } finally {
       setUploading(false)
@@ -179,6 +199,19 @@ export default function NewEnvelope() {
             />
           </label>
           <p className="mt-3 text-xs text-slate-500">Up to 20 MB. Not password-protected.</p>
+
+          {/* So an evaluator does not have to go and find a PDF first. */}
+          <p className="mt-5 border-t border-slate-200 pt-4 text-sm text-slate-600">
+            Don't have one handy?{' '}
+            <button
+              type="button"
+              onClick={useSample}
+              disabled={uploading}
+              className="font-medium text-blue-700 underline hover:text-blue-800 disabled:text-slate-400"
+            >
+              Use the sample agreement
+            </button>
+          </p>
         </div>
       )}
 

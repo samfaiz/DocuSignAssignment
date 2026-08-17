@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/documents', [DocumentController::class, 'index']);
     Route::post('/documents', [DocumentController::class, 'store']);
+    Route::post('/documents/sample', [DocumentController::class, 'storeSample']);
     Route::get('/documents/{document}/download', [DocumentController::class, 'download']);
 
     Route::get('/settings/mail', [MailSettingController::class, 'show']);
@@ -54,8 +55,13 @@ Route::prefix('sign/{uuid}')->middleware('throttle:60,1')->group(function () {
     Route::get('/', [SignerController::class, 'show']);
     Route::get('/document', [SignerController::class, 'document']);
 
-    Route::post('/otp', [SignerController::class, 'requestOtp'])->middleware('throttle:10,15');
-    Route::post('/otp/verify', [SignerController::class, 'verifyOtp'])->middleware('throttle:20,15');
+    // These are per-IP, which is a blunt instrument: everyone behind one office
+    // NAT shares a counter, so a tight limit locks out real signers. They exist
+    // only to blunt automated abuse. The limits that actually protect a specific
+    // signer are per-recipient and live in the controller — five passcode sends
+    // and five wrong guesses before lockout.
+    Route::post('/otp', [SignerController::class, 'requestOtp'])->middleware('throttle:40,15');
+    Route::post('/otp/verify', [SignerController::class, 'verifyOtp'])->middleware('throttle:60,15');
 
     Route::post('/consent', [SignerController::class, 'consent']);
     Route::post('/signature', [SignerController::class, 'createSignature']);

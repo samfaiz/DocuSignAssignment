@@ -82,6 +82,39 @@ class DocumentController extends Controller
         ], 201);
     }
 
+    /**
+     * Creates a document from the bundled sample agreement.
+     *
+     * Exists so someone evaluating this does not have to go and find a PDF
+     * before they can try the sending flow. Goes through exactly the same
+     * validation, hashing and storage path as a real upload.
+     */
+    public function storeSample(Request $request): JsonResponse
+    {
+        $path = config('signing.demo.sample_pdf');
+        abort_unless(is_string($path) && is_file($path), 500, 'Sample document is missing.');
+
+        $contents = file_get_contents($path);
+        $info = $this->signService->inspect($contents);
+
+        $key = sprintf('documents/%s/%s.pdf', $request->user()->id, Str::uuid());
+        Storage::disk(config('signing.storage_disk'))->put($key, $contents);
+
+        $document = Document::create([
+            'owner_id' => $request->user()->id,
+            'filename' => 'consulting-agreement.pdf',
+            'storage_key' => $key,
+            'sha256_original' => $info['sha256'],
+            'page_count' => $info['page_count'],
+            'size_bytes' => $info['size_bytes'],
+        ]);
+
+        return response()->json([
+            'document' => $document,
+            'first_page' => $info['first_page'] ?? null,
+        ], 201);
+    }
+
     /** Streams the original PDF so the SPA can render it with pdf.js. */
     public function download(Request $request, Document $document): StreamedResponse
     {
