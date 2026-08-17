@@ -23,6 +23,7 @@ class AuditEvent extends Model
     public const ENVELOPE_COMPLETED = 'envelope.completed';
     public const ENVELOPE_VOIDED = 'envelope.voided';
     public const ENVELOPE_SEALED = 'envelope.sealed';
+    public const EVIDENCE_PURGED = 'evidence.purged';
 
     public const RECIPIENT_EMAIL_SENT = 'recipient.email_sent';
     public const RECIPIENT_OPENED = 'recipient.opened';

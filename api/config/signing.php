@@ -123,6 +123,32 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Evidence retention
+    |--------------------------------------------------------------------------
+    |
+    | How long the more sensitive material captured during a ceremony is kept
+    | in live storage. Photographs are biometric data; Illinois BIPA requires a
+    | published destruction schedule outright, and GDPR and India's DPDP Act
+    | both expect storage limitation rather than indefinite retention.
+    |
+    | Only the sensitive artefact is removed. The decision itself — that a photo
+    | was requested, and whether the signer agreed — is kept forever, because
+    | that is the part with evidential value and it holds no personal data.
+    |
+    | This reaches live storage only. A sealed document already emailed to the
+    | parties carries its own copy and is beyond recall by design: it is
+    | tamper-evident, so nothing can be removed from it after the fact.
+    |
+    | Set either to 0 to retain indefinitely.
+    |
+    */
+    'retention' => [
+        'photo_days' => (int) env('SIGN_PHOTO_RETENTION_DAYS', 90),
+        'location_days' => (int) env('SIGN_LOCATION_RETENTION_DAYS', 365),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Reviewer demo mode
     |--------------------------------------------------------------------------
     |

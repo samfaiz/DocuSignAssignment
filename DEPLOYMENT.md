@@ -307,6 +307,34 @@ the old code in memory:
 sudo systemctl restart signdesk-queue
 ```
 
+### 7b. Scheduled work
+
+Two jobs run daily: the retention purge that deletes stored photographs and
+coordinates once their period has elapsed, and the audit-chain verification.
+Laravel's scheduler needs a single cron entry to run at all — without it both
+are silently inert, which is the worst possible state for a retention policy.
+
+```bash
+sudo crontab -u www-data -l 2>/dev/null > /tmp/cron.tmp
+echo "* * * * * cd /var/www/signdesk/api && php artisan schedule:run >> /dev/null 2>&1" >> /tmp/cron.tmp
+sudo crontab -u www-data /tmp/cron.tmp && rm /tmp/cron.tmp
+```
+
+Confirm both are registered, and see exactly what would be deleted without
+deleting it:
+
+```bash
+php artisan schedule:list
+php artisan signdesk:purge-evidence --dry-run
+```
+
+Retention periods are set in `.env`; `0` keeps data indefinitely:
+
+```ini
+SIGN_PHOTO_RETENTION_DAYS=90
+SIGN_LOCATION_RETENTION_DAYS=365
+```
+
 ### 8. Build the SPA
 
 ```bash

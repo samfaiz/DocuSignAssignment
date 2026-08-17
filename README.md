@@ -44,7 +44,11 @@ signature. Set `DEMO_MODE=false` to remove them entirely.
   document hashes, full event timeline)
 - **PAdES-B-LTA** sealing: PKCS#7 + RFC 3161 timestamp + embedded revocation data
   + a renewable document-timestamp chain
+- Optional, per-envelope: the signer's location and a photograph, both consented
+  and both recorded as *reported* rather than verified
 - Hash-chained, append-only audit trail enforced by database triggers
+- Enforced retention: photographs and coordinates are deleted on a schedule,
+  while the record of what was asked and agreed is kept
 - Public verification page — upload any PDF and check whether it has been altered
 
 ## Architecture
