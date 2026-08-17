@@ -62,6 +62,7 @@ class EnvelopeController extends Controller
             'subject' => ['required', 'string', 'max:255'],
             'message' => ['nullable', 'string', 'max:5000'],
             'expires_in_days' => ['nullable', 'integer', 'min:1', 'max:365'],
+            'require_photo' => ['nullable', 'boolean'],
 
             'recipients' => ['required', 'array', 'min:1', 'max:20'],
             'recipients.*.name' => ['required', 'string', 'max:255'],
@@ -106,6 +107,7 @@ class EnvelopeController extends Controller
                 'subject' => $data['subject'],
                 'message' => $data['message'] ?? null,
                 'status' => Envelope::STATUS_DRAFT,
+                'require_photo' => (bool) ($data['require_photo'] ?? false),
                 'expires_at' => isset($data['expires_in_days'])
                     ? Carbon::now('UTC')->addDays($data['expires_in_days'])
                     : null,

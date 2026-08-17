@@ -24,7 +24,7 @@ class Envelope extends Model
 
     protected $fillable = [
         'document_id', 'sender_id', 'subject', 'message', 'status',
-        'sent_at', 'completed_at', 'expires_at',
+        'sent_at', 'completed_at', 'expires_at', 'require_photo',
     ];
 
     protected function casts(): array
@@ -33,6 +33,7 @@ class Envelope extends Model
             'sent_at' => 'datetime',
             'completed_at' => 'datetime',
             'expires_at' => 'datetime',
+            'require_photo' => 'boolean',
         ];
     }
 

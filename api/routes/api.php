@@ -65,6 +65,7 @@ Route::prefix('sign/{uuid}')->middleware('throttle:60,1')->group(function () {
 
     Route::post('/consent', [SignerController::class, 'consent']);
     Route::post('/location', [SignerController::class, 'shareLocation']);
+    Route::post('/photo', [SignerController::class, 'capturePhoto']);
     Route::post('/signature', [SignerController::class, 'createSignature']);
     Route::post('/fields', [SignerController::class, 'saveFields']);
     Route::post('/finish', [SignerController::class, 'finish']);

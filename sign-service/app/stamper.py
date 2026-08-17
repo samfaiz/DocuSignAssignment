@@ -93,6 +93,37 @@ def whiten_to_alpha(png_or_jpeg: bytes, threshold: int = 235) -> bytes:
     return buf.getvalue()
 
 
+def sanitise_photo(raw: bytes, max_edge: int = 800, quality: int = 82) -> bytes:
+    """Decode, strip metadata and re-encode a photograph taken at signing.
+
+    Three things happen here, and the middle one is the important one.
+
+    Phone cameras embed EXIF, and EXIF routinely contains GPS coordinates. A
+    system that asks separately for location consent must not then harvest a
+    position out of the photograph of someone who declined. Decoding to pixels
+    and writing a fresh file leaves every EXIF tag behind — but orientation
+    lives in EXIF too, so it is applied first or portrait photos come out
+    sideways.
+
+    Downscaling caps what is retained: a face at 800px is ample for a person to
+    look at and say "that is not me", which is the whole evidential purpose, and
+    keeps the stored image well short of anything usable for face matching.
+    """
+    from PIL import ImageOps
+
+    image = Image.open(io.BytesIO(raw))
+
+    # Applies the EXIF orientation tag, then discards it along with the rest.
+    image = ImageOps.exif_transpose(image)
+    image = image.convert("RGB")
+    image.thumbnail((max_edge, max_edge), Image.LANCZOS)
+
+    out = io.BytesIO()
+    # A fresh Image with no exif argument carries no metadata at all.
+    image.save(out, format="JPEG", quality=quality, optimize=True)
+    return out.getvalue()
+
+
 def _overlay_for_page(
     width: float, height: float, placements: list[Placement]
 ) -> bytes:

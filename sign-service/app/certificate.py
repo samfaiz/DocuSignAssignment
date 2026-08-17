@@ -6,6 +6,7 @@ someone signed but how they were identified, what they consented to, and what
 the document hashed to before and after.
 """
 
+import base64
 import io
 from typing import Any
 
@@ -15,6 +16,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
+    Image as RLImage,
     KeepTogether,
     PageBreak,
     Paragraph,
@@ -196,6 +198,54 @@ def build(payload: dict[str, Any]) -> bytes:
             ] for c in consents],
             st,
             [width * 0.30, width * 0.24, width * 0.28, width * 0.18],
+        ))
+
+    # --- Photograph ---------------------------------------------------------
+    photographed = [r for r in recipients if r.get("photo_b64")]
+    if photographed or any(
+        r.get("photo") and r.get("photo") != "Not requested" for r in recipients
+    ):
+        story.append(Paragraph("Photograph at signing", st["h2"]))
+
+        for r in recipients:
+            if r.get("photo", "Not requested") == "Not requested":
+                continue
+
+            row: list = [Paragraph(f"<b>{r.get('name', '—')}</b><br/>{r.get('photo')}", st["cell"])]
+
+            if r.get("photo_b64"):
+                try:
+                    picture = RLImage(
+                        io.BytesIO(base64.b64decode(r["photo_b64"])),
+                        width=32 * mm,
+                        height=32 * mm,
+                        kind="proportional",
+                    )
+                    row.append(picture)
+                except Exception:  # noqa: BLE001
+                    row.append(Paragraph("Image could not be rendered", st["cell"]))
+            else:
+                row.append(Paragraph("—", st["cell"]))
+
+            table = Table([row], colWidths=[width * 0.62, width * 0.38], hAlign="LEFT")
+            table.setStyle(TableStyle([
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("GRID", (0, 0), (-1, -1), 0.25, RULE),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 6))
+
+        story.append(Paragraph(
+            "This photograph was taken by the signer's own device at the moment of "
+            "signing, with their permission. It is <b>not identity verification</b>: "
+            "no government document was checked against it and no liveness test was "
+            "performed. It establishes that a person was present and willing to be "
+            "photographed, which is evidence — but it does not, on its own, establish "
+            "who that person is.",
+            st["note"],
         ))
 
     # --- Audit trail --------------------------------------------------------

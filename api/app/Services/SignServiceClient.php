@@ -46,6 +46,14 @@ class SignServiceClient
         ]);
     }
 
+    /** Strip metadata from a signing photograph and re-encode it as JPEG. */
+    public function sanitizePhoto(string $rawImage): array
+    {
+        return $this->post('/sanitize-photo', [
+            'image_b64' => base64_encode($rawImage),
+        ]);
+    }
+
     /** Decode, background-strip and re-encode an uploaded signature image. */
     public function sanitizeSignature(string $rawImage): array
     {

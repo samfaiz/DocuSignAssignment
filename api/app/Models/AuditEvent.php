@@ -31,6 +31,7 @@ class AuditEvent extends Model
     public const RECIPIENT_OTP_FAILED = 'recipient.otp_failed';
     public const RECIPIENT_CONSENTED = 'recipient.consented';
     public const RECIPIENT_LOCATION = 'recipient.location';
+    public const RECIPIENT_PHOTO = 'recipient.photo';
     public const RECIPIENT_VIEWED_DOCUMENT = 'recipient.viewed_document';
     public const RECIPIENT_FIELD_COMPLETED = 'recipient.field_completed';
     public const RECIPIENT_SIGNED = 'recipient.signed';

@@ -178,12 +178,32 @@ class SealEnvelope implements ShouldQueue
                 'signed_at' => $r->signed_at?->format('Y-m-d H:i:s') ?? '—',
                 'ip' => $r->last_ip ?? '—',
                 'location' => $r->locationSummary(),
+                'photo' => $r->photoSummary(),
+                'photo_b64' => $this->photoFor($r),
                 'consent_accepted_at' => $r->consent?->accepted_at?->format('Y-m-d H:i:s'),
                 'consent_version' => $r->consent?->disclosure_version,
                 'consent_ip' => $r->consent?->ip,
             ])->all(),
             'events' => $audit->projectForCertificate($envelope),
         ];
+    }
+
+    /** The stored photograph, if one was taken, for the certificate page. */
+    private function photoFor(Recipient $recipient): ?string
+    {
+        if (! $recipient->hasPhoto()) {
+            return null;
+        }
+
+        try {
+            return base64_encode(
+                Storage::disk(config('signing.storage_disk'))->get($recipient->photo_storage_key)
+            );
+        } catch (\Throwable $e) {
+            Log::warning("Could not read signing photo for recipient {$recipient->id}: {$e->getMessage()}");
+
+            return null;
+        }
     }
 
     /** Every party gets the signed copy: all recipients plus the sender. */

@@ -233,6 +233,24 @@ def finalize(body: FinalizeIn) -> JSONResponse:
     })
 
 
+@app.post("/sanitize-photo", dependencies=[Depends(verify_hmac)])
+def sanitize_photo(body: SanitizeIn) -> dict:
+    """Strip metadata from a photograph captured during signing.
+
+    Separate from /sanitize-signature: that one knocks a white background out
+    to alpha, which is exactly wrong for a photograph. This one keeps the
+    picture intact and removes everything around it — most importantly the EXIF
+    GPS tags a phone camera writes without being asked.
+    """
+    try:
+        raw = base64.b64decode(body.image_b64, validate=True)
+        jpeg = stamper.sanitise_photo(raw)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=422, detail=f"unreadable image: {exc}") from exc
+
+    return {"jpeg_b64": base64.b64encode(jpeg).decode(), "sha256": _sha256(jpeg)}
+
+
 @app.post("/inspect", dependencies=[Depends(verify_hmac)])
 def inspect_pdf(body: VerifyIn) -> dict:
     """Validate an uploaded PDF and report its shape.

@@ -74,6 +74,7 @@ class SignerController extends Controller
                 'message' => $envelope->message,
                 'status' => $envelope->status,
                 'expires_at' => $envelope->expires_at,
+                'require_photo' => (bool) $envelope->require_photo,
                 'sender' => $envelope->sender->name,
                 'document' => [
                     'filename' => $envelope->document->filename,
@@ -89,6 +90,7 @@ class SignerController extends Controller
                 'otp_verified' => $recipient->otp_verified,
                 'has_consented' => $recipient->consent !== null,
                 'location_consent' => $recipient->location_consent,
+                'photo_consent' => $recipient->photo_consent,
             ],
             // Scoped to this recipient. Another signer's fields are not merely
             // hidden in the UI — they never leave the database.
@@ -252,6 +254,80 @@ class SignerController extends Controller
             'location_consent' => $recipient->location_consent,
             'summary' => $recipient->locationSummary(),
         ]);
+    }
+
+    /**
+     * Record the signer's decision about being photographed.
+     *
+     * Only offered when the sender enabled it for this envelope. Declining is
+     * recorded and never blocks signing — a photograph extracted as the price
+     * of signing is not consent in any sense a regulator would recognise.
+     *
+     * The image is re-encoded server-side before storage, which strips the EXIF
+     * a phone camera writes. That matters here specifically: EXIF carries GPS,
+     * and this system asks about location separately. Harvesting a position out
+     * of the photograph of someone who declined to share one would make that
+     * separate question a fiction.
+     */
+    public function capturePhoto(Request $request, string $uuid): JsonResponse
+    {
+        $recipient = $this->requireVerified($request, $uuid);
+
+        abort_unless(
+            $recipient->envelope->require_photo,
+            422,
+            'This envelope does not ask for a photograph.'
+        );
+
+        $data = $request->validate([
+            'consent' => ['required', 'in:granted,denied,unsupported,failed'],
+            'image' => ['required_if:consent,granted', 'nullable', 'string'],
+        ]);
+
+        if ($data['consent'] !== Recipient::LOCATION_GRANTED) {
+            $recipient->forceFill([
+                'photo_consent' => $data['consent'],
+                'photo_captured_at' => Carbon::now('UTC'),
+            ])->save();
+
+            $this->audit->record($recipient->envelope, AuditEvent::RECIPIENT_PHOTO, [
+                'consent' => $data['consent'],
+                'stored' => false,
+            ], recipient: $recipient, request: $request, actor: $recipient->email);
+
+            return response()->json(['photo_consent' => $data['consent']]);
+        }
+
+        try {
+            $raw = $this->decodeImage($data['image']);
+            $result = $this->signService->sanitizePhoto($raw);
+        } catch (RuntimeException) {
+            throw ValidationException::withMessages([
+                'image' => 'That photograph could not be processed.',
+            ]);
+        }
+
+        $key = sprintf('photos/%d/%s.jpg', $recipient->id, Str::uuid());
+        Storage::disk(config('signing.storage_disk'))->put($key, base64_decode($result['jpeg_b64']));
+
+        $recipient->forceFill([
+            'photo_consent' => Recipient::LOCATION_GRANTED,
+            'photo_storage_key' => $key,
+            'photo_sha256' => $result['sha256'],
+            'photo_captured_at' => Carbon::now('UTC'),
+        ])->save();
+
+        // The hash goes in the trail, never the image. An audit log is shown to
+        // every party; a photograph of one signer's face is not something the
+        // others need a copy of.
+        $this->audit->record($recipient->envelope, AuditEvent::RECIPIENT_PHOTO, [
+            'consent' => 'granted',
+            'stored' => true,
+            'sha256' => $result['sha256'],
+            'note' => 'Photograph captured at signing; not identity-verified',
+        ], recipient: $recipient, request: $request, actor: $recipient->email);
+
+        return response()->json(['photo_consent' => 'granted']);
     }
 
     /** Create a signature artefact: drawn, uploaded, or typed. */

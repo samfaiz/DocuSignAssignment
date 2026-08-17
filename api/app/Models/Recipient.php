@@ -30,6 +30,7 @@ class Recipient extends Model
         'decline_reason', 'last_ip', 'last_user_agent',
         'location_consent', 'latitude', 'longitude',
         'location_accuracy_m', 'location_captured_at',
+        'photo_consent', 'photo_storage_key', 'photo_sha256', 'photo_captured_at',
     ];
 
     /**
@@ -40,6 +41,7 @@ class Recipient extends Model
      */
     protected $attributes = [
         'location_consent' => 'not_asked',
+        'photo_consent' => 'not_asked',
     ];
 
     public const LOCATION_NOT_ASKED = 'not_asked';
@@ -67,7 +69,33 @@ class Recipient extends Model
             'latitude' => 'float',
             'longitude' => 'float',
             'location_captured_at' => 'datetime',
+            'photo_captured_at' => 'datetime',
         ];
+    }
+
+    public function hasPhoto(): bool
+    {
+        return $this->photo_storage_key !== null;
+    }
+
+    /**
+     * How the photograph should be described on the certificate.
+     *
+     * Never worded as verification. A photograph establishes that someone was
+     * present and willing to be photographed; without a government ID, a face
+     * match against it and liveness detection, it does not establish who.
+     */
+    public function photoSummary(): string
+    {
+        return match ($this->photo_consent) {
+            self::LOCATION_GRANTED => $this->hasPhoto()
+                ? 'Photograph captured at signing (not identity-verified)'
+                : 'Agreed, but no photograph was stored',
+            self::LOCATION_DENIED => 'Declined by signer',
+            self::LOCATION_UNSUPPORTED => 'No camera available on signer device',
+            self::LOCATION_FAILED => 'Attempted, camera could not be started',
+            default => 'Not requested',
+        };
     }
 
     public function hasLocation(): bool

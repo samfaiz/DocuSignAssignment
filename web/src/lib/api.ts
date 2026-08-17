@@ -244,6 +244,16 @@ export const signerApi = {
       { method: 'POST', body: payload },
     ),
 
+  capturePhoto: (
+    uuid: string,
+    token: string,
+    payload: { consent: 'granted' | 'denied' | 'unsupported' | 'failed'; image?: string },
+  ) =>
+    request<{ photo_consent: string }>(`/sign/${uuid}/photo?t=${token}`, {
+      method: 'POST',
+      body: payload,
+    }),
+
   createSignature: (
     uuid: string,
     token: string,
@@ -344,6 +354,7 @@ export type CreateEnvelopePayload = {
   subject: string
   message?: string
   expires_in_days?: number
+  require_photo?: boolean
   recipients: RecipientInput[]
   fields: PlacedField[]
 }
@@ -434,6 +445,7 @@ export type SignerPayload = {
     status: string
     expires_at: string | null
     sender: string
+    require_photo: boolean
     document: { filename: string; page_count: number }
   }
   recipient: {
@@ -445,6 +457,7 @@ export type SignerPayload = {
     otp_verified: boolean
     has_consented: boolean
     location_consent: string | null
+    photo_consent: string | null
   }
   fields: SignerField[]
   my_turn: boolean

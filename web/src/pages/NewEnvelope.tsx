@@ -39,6 +39,7 @@ export default function NewEnvelope() {
   const [subject, setSubject] = useState('')
   const [message, setMessage] = useState('')
   const [expiresInDays, setExpiresInDays] = useState(30)
+  const [requirePhoto, setRequirePhoto] = useState(false)
 
   const [recipients, setRecipients] = useState<RecipientInput[]>([{ name: '', email: '' }])
   const [activeRecipient, setActiveRecipient] = useState(0)
@@ -156,6 +157,7 @@ export default function NewEnvelope() {
         subject,
         message: message || undefined,
         expires_in_days: expiresInDays,
+        require_photo: requirePhoto,
         recipients,
         fields,
       })
@@ -346,6 +348,22 @@ export default function NewEnvelope() {
                 rows={3}
                 className="mb-2 w-full rounded border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-600"
               />
+              <label className="mb-3 flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={requirePhoto}
+                  onChange={(e) => setRequirePhoto(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-xs leading-relaxed text-slate-600">
+                  Ask each signer for a photo
+                  <span className="mt-0.5 block text-slate-400">
+                    Optional for them to accept. A face image is biometric data, so
+                    only enable it where the document genuinely warrants it.
+                  </span>
+                </span>
+              </label>
+
               <label className="block text-xs text-slate-500">
                 Link expires after
                 <input
