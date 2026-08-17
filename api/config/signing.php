@@ -140,5 +140,17 @@ return [
     'demo' => [
         'enabled' => (bool) env('DEMO_MODE', env('APP_ENV') === 'local'),
         'sample_pdf' => resource_path('demo/consulting-agreement.pdf'),
+
+        /*
+        | A throwaway account for reviewers, deliberately separate from any real
+        | administrator. The demo page publishes these credentials, so they must
+        | never be someone's actual login — on a public deployment that would
+        | hand every visitor read access to every document in the system.
+        |
+        | Recreated with this password whenever a demo envelope is provisioned,
+        | so what the page displays is always what actually works.
+        */
+        'admin_email' => env('DEMO_ADMIN_EMAIL', 'demo@signdesk.test'),
+        'admin_password' => env('DEMO_ADMIN_PASSWORD', 'demo-signdesk-2026'),
     ],
 ];

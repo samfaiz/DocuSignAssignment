@@ -46,11 +46,14 @@ class DemoController extends Controller
     /** Builds a fresh envelope, sends it, and hands back a live signing link. */
     public function provision(Request $request): JsonResponse
     {
-        $admin = User::firstOrCreate(
-            ['email' => 'admin@signdesk.test'],
+        // updateOrCreate rather than firstOrCreate: the password is published on
+        // the demo page, so it has to be the password that actually works. This
+        // account is separate from any real administrator by design.
+        $admin = User::updateOrCreate(
+            ['email' => config('signing.demo.admin_email')],
             [
-                'name' => 'SignDesk Admin',
-                'password' => Hash::make('password'),
+                'name' => 'SignDesk Demo',
+                'password' => Hash::make(config('signing.demo.admin_password')),
                 'email_verified_at' => now(),
             ]
         );
@@ -151,9 +154,31 @@ class DemoController extends Controller
             'sign_url' => $url,
             'envelope_uuid' => $envelope->uuid,
             'token' => $token,
-            'admin' => ['email' => 'admin@signdesk.test', 'password' => 'password'],
-            'mailpit_url' => 'http://localhost:8025',
+            'admin' => $this->credentials(),
         ], 201);
+    }
+
+    /**
+     * The throwaway credentials the demo page displays.
+     *
+     * Served rather than hard-coded in the frontend so the page can never
+     * advertise a login that does not work — and so a real administrator's
+     * password is never the thing on screen.
+     */
+    public function info(): JsonResponse
+    {
+        return response()->json([
+            'admin' => $this->credentials(),
+            'mail_configured' => \App\Models\MailSetting::current()->isConfigured(),
+        ]);
+    }
+
+    private function credentials(): array
+    {
+        return [
+            'email' => config('signing.demo.admin_email'),
+            'password' => config('signing.demo.admin_password'),
+        ];
     }
 
     /**

@@ -175,6 +175,12 @@ export const api = {
  * enabled, so every call here must tolerate a 404 rather than assume it.
  */
 export const demoApi = {
+  info: () =>
+    request<{
+      admin: { email: string; password: string }
+      mail_configured: boolean
+    }>('/demo/info'),
+
   provision: () =>
     request<{
       sign_url: string

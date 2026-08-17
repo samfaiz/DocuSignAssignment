@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { demoApi } from '../lib/api'
 import { useTour, useTourStep } from '../lib/tour'
@@ -17,6 +17,21 @@ export default function Demo() {
 
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Fetched rather than hard-coded: the page must never advertise a login that
+  // does not work, and the demo account is deliberately not a real one.
+  const [admin, setAdmin] = useState<{ email: string; password: string } | null>(null)
+  const [mailConfigured, setMailConfigured] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    demoApi
+      .info()
+      .then(({ admin, mail_configured }) => {
+        setAdmin(admin)
+        setMailConfigured(mail_configured)
+      })
+      .catch(() => setAdmin(null))
+  }, [])
 
   async function startCeremony() {
     setBusy(true)
@@ -77,10 +92,19 @@ export default function Demo() {
             leaves behind.
           </p>
           <div className="mt-4 rounded-md bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-600">
-            admin@signdesk.test
-            <br />
-            password
+            {admin ? (
+              <>
+                {admin.email}
+                <br />
+                {admin.password}
+              </>
+            ) : (
+              <span className="font-sans text-slate-400">Loading credentials…</span>
+            )}
           </div>
+          <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+            A throwaway demo account, separate from any real administrator.
+          </p>
           <button
             onClick={() => navigate('/login')}
             className="mt-3 rounded-md border border-slate-300 px-4 py-2.5 text-sm font-medium transition hover:bg-slate-50"
@@ -110,17 +134,20 @@ export default function Demo() {
             every load.
           </li>
           <li>
-            <b className="font-medium text-slate-900">Mail is captured locally.</b>{' '}
-            Every message the system sends is visible at{' '}
-            <a
-              href="http://localhost:8025"
-              className="text-blue-700 underline"
-              target="_blank"
-              rel="noreferrer"
-            >
-              localhost:8025
-            </a>
-            .
+            <b className="font-medium text-slate-900">Email.</b>{' '}
+            {mailConfigured === false ? (
+              <>
+                SMTP is not configured on this deployment yet, so the one-time
+                passcode is shown on screen during the ceremony rather than sent.
+                It is configurable from the admin Settings page.
+              </>
+            ) : (
+              <>
+                Signing invitations and one-time passcodes are sent over SMTP,
+                configured from the admin Settings page. During this demo the
+                passcode is also shown on screen so you need not check an inbox.
+              </>
+            )}
           </li>
         </ul>
       </section>

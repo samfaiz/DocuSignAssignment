@@ -90,6 +90,7 @@ Route::post('/verify', [VerificationController::class, 'verify'])
 
 if (config('signing.demo.enabled')) {
     Route::prefix('demo')->middleware('throttle:30,1')->group(function () {
+        Route::get('/info', [DemoController::class, 'info']);
         Route::post('/envelope', [DemoController::class, 'provision']);
         Route::get('/otp/{uuid}', [DemoController::class, 'otp']);
     });
