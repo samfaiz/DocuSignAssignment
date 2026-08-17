@@ -20,6 +20,9 @@ vendor/
 
 # ------------------------------------------------------------- build output
 /web/dist/
+# Copied from node_modules by scripts/copy-pdf-worker.mjs on predev/prebuild,
+# so it stays in lockstep with the installed pdfjs-dist rather than drifting.
+/web/public/pdf.worker.min.js
 /api/public/build/
 /api/public/hot
 

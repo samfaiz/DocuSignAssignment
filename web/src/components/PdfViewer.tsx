@@ -1,8 +1,12 @@
 import * as pdfjsLib from 'pdfjs-dist'
-import workerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { useEffect, useRef, useState } from 'react'
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = workerUrl
+// Served from public/ as .js rather than imported as .mjs. pdf.js loads its
+// worker through a dynamic import(), which browsers MIME-check strictly, and
+// many servers have no mapping for .mjs — they answer application/octet-stream
+// and the browser refuses to run it. scripts/copy-pdf-worker.mjs puts the file
+// here during predev/prebuild, so the bytes always match the installed version.
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js'
 
 export type PageBox = { width: number; height: number }
 
