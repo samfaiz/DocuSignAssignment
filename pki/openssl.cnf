@@ -44,10 +44,13 @@ prompt             = no
 distinguished_name = ca_dn
 x509_extensions    = v3_ca
 
+# Identity comes from the environment so a deployment does not ship a
+# certificate that says "Development" in the subject line your counterparties
+# read. gen-pki.sh exports defaults for all of these.
 [ ca_dn ]
-C  = IN
-O  = SignDesk Development
-CN = SignDesk Dev Signing CA
+C  = $ENV::PKI_COUNTRY
+O  = $ENV::PKI_ORG
+CN = $ENV::PKI_CA_CN
 
 # Selected with `openssl req -section req_signer`. The DN lives here rather than
 # in a -subj flag because Git Bash on Windows rewrites /C=IN/... into a
@@ -60,10 +63,10 @@ prompt             = no
 distinguished_name = signer_dn
 
 [ signer_dn ]
-C            = IN
-O            = SignDesk Development
-CN           = SignDesk Document Signer
-emailAddress = signer@signdesk.local
+C            = $ENV::PKI_COUNTRY
+O            = $ENV::PKI_ORG
+CN           = $ENV::PKI_SIGNER_CN
+emailAddress = $ENV::PKI_SIGNER_EMAIL
 
 [ v3_ca ]
 basicConstraints     = critical, CA:true, pathlen:0
@@ -83,9 +86,16 @@ subjectKeyIdentifier   = hash
 authorityKeyIdentifier = keyid:always
 crlDistributionPoints  = @crl_dp
 
-# Two URIs on purpose: the first resolves from the host (Adobe Reader, the
-# test suite), the second resolves from inside the Docker network
-# (the sign-service container). Validators try each in turn.
+# Where a verifier fetches the revocation list.
+#
+# This has to be reachable by whoever opens the document, not just by the
+# machine that signed it — so on a real deployment it must be the public
+# hostname. PAdES B-LT and B-LTA embed revocation data, and a distribution
+# point nobody can reach is the difference between a signature that validates
+# and one that reports as untrusted.
+#
+# Two URIs: the deployment's public address first, then the local development
+# server. Validators try each in turn, so one certificate works in both places.
 [ crl_dp ]
-URI.1 = http://localhost:8080/crl.der
-URI.2 = http://pki-web/crl.der
+URI.1 = $ENV::PKI_CRL_URL
+URI.2 = http://localhost:8080/crl.der

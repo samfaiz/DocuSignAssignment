@@ -139,6 +139,35 @@ sudo chown root:www-data /var/www/signdesk/pki/out/signer.p12
 sudo chmod 640 /var/www/signdesk/pki/out/signer.p12
 ```
 
+### Using the built-in CA for a demo
+
+If you are deploying to show the system rather than to sign anything binding,
+the bundled CA is a reasonable choice — the cryptography is identical, the
+certificate simply chains to a root nobody trusts, so Adobe shows it as
+untrusted until `ca.pem` is imported manually.
+
+Set the identity and the CRL address, or the certificate will read
+"SignDesk Development" and point its revocation list at `localhost`:
+
+```bash
+PKI_ORG="Your Organisation" \
+PKI_CA_CN="Your Organisation Signing CA" \
+PKI_SIGNER_EMAIL="signer@your.domain" \
+PKI_CRL_URL="https://your.domain/crl.der" \
+  bash pki/scripts/gen-pki.sh --force
+```
+
+The vhost above already serves `/crl.der` and `/ca.pem`, so that URL resolves.
+Confirm it before signing anything — a distribution point nobody can reach is
+the difference between a signature that validates and one that reports as
+untrusted:
+
+```bash
+curl -sI https://your.domain/crl.der | head -1
+```
+
+Restart the sealing service afterwards so it picks up the new key.
+
 ### 5. Sealing service
 
 ```bash

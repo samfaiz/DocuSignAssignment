@@ -14,6 +14,21 @@ cd "$(dirname "$0")/.."   # -> pki/
 # pass -config explicitly. Pin it to ours.
 export OPENSSL_CONF="$PWD/openssl.cnf"
 
+# Certificate identity. These end up in the subject line a counterparty reads
+# in Adobe Reader and on the certificate of completion, so a deployment should
+# set them rather than shipping the defaults.
+#
+#   PKI_ORG=".." PKI_CRL_URL="https://your.domain/crl.der" bash pki/scripts/gen-pki.sh --force
+#
+export PKI_COUNTRY="${PKI_COUNTRY:-IN}"
+export PKI_ORG="${PKI_ORG:-SignDesk}"
+export PKI_CA_CN="${PKI_CA_CN:-SignDesk Signing CA}"
+export PKI_SIGNER_CN="${PKI_SIGNER_CN:-SignDesk Document Signer}"
+export PKI_SIGNER_EMAIL="${PKI_SIGNER_EMAIL:-signer@signdesk.local}"
+
+# Must be reachable by anyone verifying the document, not just by this machine.
+export PKI_CRL_URL="${PKI_CRL_URL:-http://localhost:8080/crl.der}"
+
 OUT=out
 P12_PASS="${SIGNER_P12_PASSPHRASE:-signdesk}"
 
