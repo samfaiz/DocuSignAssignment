@@ -167,11 +167,18 @@ export default function NewEnvelope() {
     }
   }
 
-  const ready =
-    document !== null &&
-    subject.trim().length > 0 &&
-    fields.length > 0 &&
-    recipients.every((r) => r.name.trim() && r.email.trim())
+  // Spelled out rather than left as a disabled button, which tells the user
+  // nothing about what is wrong. "Place a field" in particular is easy to miss:
+  // everything else is a form control, but that one needs a click on the page.
+  const missing = [
+    document === null && 'choose a document',
+    subject.trim().length === 0 && 'add a subject',
+    !recipients.every((r) => r.name.trim() && r.email.trim()) &&
+      'fill in every recipient name and email',
+    fields.length === 0 && 'click the page to place at least one field',
+  ].filter((item): item is string => typeof item === 'string')
+
+  const ready = missing.length === 0
 
   return (
     <div>
@@ -353,13 +360,28 @@ export default function NewEnvelope() {
               </label>
             </section>
 
-            <button
-              disabled={!ready || submitting}
-              onClick={createAndSend}
-              className="w-full rounded-md bg-blue-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {submitting ? 'Sending…' : 'Send for signature'}
-            </button>
+            <div>
+              <button
+                disabled={!ready || submitting}
+                onClick={createAndSend}
+                className="w-full rounded-md bg-blue-700 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {submitting ? 'Sending…' : 'Send for signature'}
+              </button>
+
+              {!ready && (
+                <div className="mt-2 rounded-md bg-slate-50 px-3 py-2">
+                  <p className="text-xs font-medium text-slate-600">Still needed</p>
+                  <ul className="mt-1 space-y-0.5">
+                    {missing.map((item) => (
+                      <li key={item} className="text-xs text-slate-500">
+                        &middot; {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
           </aside>
 
           {/* ----------------------------------------------- right column */}
