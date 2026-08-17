@@ -25,11 +25,8 @@ DigiCert.
 9. [Core concepts of digital signatures](#9-core-concepts-of-digital-signatures)
 10. [Security controls implemented](#10-security-controls-implemented)
 11. [Privacy: what is captured, and what is deleted](#11-privacy-what-is-captured-and-what-is-deleted)
-12. [Running it locally](#12-running-it-locally)
-13. [Deploying to a server](#13-deploying-to-a-server)
-14. [Proving it works](#14-proving-it-works)
-15. [Engineering notes](#15-engineering-notes)
-16. [Known limitations](#16-known-limitations)
+12. [Engineering notes](#12-engineering-notes)
+13. [Known limitations](#13-known-limitations)
 
 ---
 
@@ -50,7 +47,8 @@ what was actually built, which runs and is deployed.
 
 A PDF version of the written analysis is at
 [`docs/SignDesk-Assignment.pdf`](docs/SignDesk-Assignment.pdf), regenerable with
-`python docs/build_report.py`.
+`python docs/build_report.py`. Setup, deployment and the commands that verify
+the signature are in [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ---
 
@@ -571,117 +569,7 @@ trustworthy is the same one that makes it unretractable.
 
 ---
 
-## 12. Running it locally
-
-Requires PHP 8.3+ (with `pdo_pgsql`), Composer, Node 20+, Python 3.12, Docker and
-OpenSSL.
-
-```bash
-# 1. Infrastructure
-docker compose up -d postgres redis minio minio-init mailpit pki-web
-
-# 2. Certificates (required — see the CRL note in section 9)
-bash pki/scripts/gen-pki.sh
-
-# 3. Sealing service
-cd sign-service
-python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -r requirements.txt
-python scripts/fetch_fonts.py
-PKI_DIR=../pki/out ./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8001
-
-# 4. API (new terminal)
-cd api
-composer install
-php artisan migrate --seed
-php artisan serve --port=8000
-php artisan queue:work          # third terminal — sealing runs on the queue
-
-# 5. SPA (fourth terminal)
-cd web
-npm install
-npm run dev
-```
-
-Open <http://localhost:5173>. Mail is captured by Mailpit at
-<http://localhost:8025>. Seeded administrator: `admin@signdesk.test` / `password`.
-
-Postgres is published on **55432** and Redis on **63790** — deliberately high, so
-a native install on the default ports cannot answer instead, which surfaces as a
-confusing authentication failure rather than a connection error.
-
-> The queue worker holds the application in memory. Restart it after changing any
-> code it touches.
-
----
-
-## 13. Deploying to a server
-
-Full walkthrough in **[DEPLOYMENT.md](DEPLOYMENT.md)** — Ubuntu 24.04, nginx,
-PHP-FPM, systemd units for the sealing service and queue worker, SSL, and a
-production checklist.
-
-The four things that will bite you, in order:
-
-1. **`DEMO_MODE=false`.** With it on, the API hands out live one-time passcodes.
-2. **Do not deploy the development CA.** Its root is trusted by nobody, so every
-   signature shows as untrusted in Adobe. Production needs a real
-   document-signing certificate — or an ESP integration for IT Act §3A.
-3. **The CRL must be reachable from the server.** B-LT/B-LTA embed revocation
-   data; if the fetch fails, sealing silently degrades to a weaker level.
-4. **Restart the queue worker on every deploy.** It holds PHP code in memory.
-
----
-
-## 14. Proving it works
-
-### End-to-end ceremony
-
-```bash
-./sign-service/.venv/Scripts/python.exe api/tests/e2e/ceremony.py
-```
-
-Drives the real HTTP API exactly as the SPA does: uploads, builds an envelope,
-sends it, reads the signing link and passcode out of Mailpit, signs, waits for
-the queue to seal, confirms the signed copy is delivered, then verifies the
-result and probes the access controls. **46 checks.**
-
-### The signature is real
-
-```bash
-cd sign-service
-./.venv/Scripts/pyhanko.exe sign validate --pretty-print --trust ../pki/out/ca.pem tmp/5-sealed.pdf
-```
-
-An independent validator — not this codebase — reports that the signature is
-cryptographically sound, that the timestamp is backed by a trusted authority
-(DigiCert SHA256 RSA4096 Timestamp Responder), and that the signature is judged
-**VALID**.
-
-### Tamper detection
-
-```bash
-cd sign-service && PKI_DIR=../pki/out ./.venv/Scripts/python.exe scripts/smoke_test.py
-```
-
-Seals a document, changes one byte of page content, re-validates. The altered
-file still opens perfectly and its signature reports as broken — which is exactly
-the point. The same file through the pyHanko CLI returns **INVALID**.
-
-### Test suites
-
-```bash
-cd api && php artisan test                                            # 59 tests
-cd api && php artisan signdesk:verify-audit                           # recomputes every chain
-cd sign-service && ./.venv/Scripts/python.exe scripts/http_test.py    # 24 checks
-```
-
-The PHP tests run against PostgreSQL, not SQLite — the schema depends on `jsonb`,
-GIN indexes and a plpgsql trigger, and testing against another engine would skip
-the guarantees the tests exist to prove.
-
----
-
-## 15. Engineering notes
+## 12. Engineering notes
 
 Bugs worth recording, because several were only reachable in production and each
 one taught something:
@@ -718,7 +606,7 @@ so the render promise never resolves in a background tab.
 
 ---
 
-## 16. Known limitations
+## 13. Known limitations
 
 - **The development CA is not a public trust anchor.** Adobe shows the signature
   as valid only after its certificate is trusted manually. Production needs a
@@ -738,12 +626,3 @@ so the render promise never resolves in a background tab.
   alone loses every document, signature image and photograph.
 
 ---
-
-## Sources
-
-Pricing and library capabilities checked August 2026: DocuSign and Adobe Acrobat
-Sign via Signeasy and Costbench; SignNow and Dropbox Sign via Unkoa; Zoho Sign
-from zoho.com; Leegality via productgrowth.in; India eSign comparison via
-signyu.com and peko.one; open-source alternatives via sliplane.io and eversign;
-pyHanko capabilities from docs.pyhanko.eu; FPDI limitations from
-manuals.setasign.com.
