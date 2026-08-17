@@ -42,6 +42,26 @@ export default function PhotoConsent({ onDecision }: Props) {
 
   useEffect(() => stopCamera, [])
 
+  /**
+   * Attaches the stream once the <video> is actually on the page.
+   *
+   * This cannot be done in startCamera: the element only renders when `live`
+   * is true, and setLive schedules a render rather than performing one, so the
+   * ref is still null on the line after it. Assigning there silently did
+   * nothing and left a black rectangle that never produced a frame.
+   */
+  useEffect(() => {
+    const video = videoRef.current
+    const stream = streamRef.current
+
+    if (!live || !video || !stream) return
+
+    video.srcObject = stream
+    video.play().catch(() => {
+      setError('The camera preview could not start. Try again, or continue without a photo.')
+    })
+  }, [live])
+
   async function record(payload: { consent: Consent; image?: string }) {
     setBusy(true)
     setError(null)
@@ -70,11 +90,8 @@ export default function PhotoConsent({ onDecision }: Props) {
         audio: false,
       })
       streamRef.current = stream
+      // The effect above attaches it once React has rendered the element.
       setLive(true)
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
     } catch (error) {
       // Refusing the browser prompt is a decision; a camera that is missing or
       // already in use by another application is a different fact.
@@ -135,9 +152,11 @@ export default function PhotoConsent({ onDecision }: Props) {
             ref={videoRef}
             playsInline
             muted
-            onLoadedMetadata={(event) =>
-              setReady(event.currentTarget.videoWidth > 0)
-            }
+            // Both events, because which one first reports usable dimensions
+            // varies by browser, and the capture button stays disabled until
+            // one of them does.
+            onLoadedMetadata={(event) => setReady(event.currentTarget.videoWidth > 0)}
+            onCanPlay={(event) => setReady(event.currentTarget.videoWidth > 0)}
             className="mx-auto block max-h-64 w-auto"
           />
         </div>
