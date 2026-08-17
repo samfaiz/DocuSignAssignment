@@ -23,22 +23,36 @@ export default function PhotoConsent({ onDecision }: Props) {
 
   const [busy, setBusy] = useState(false)
   const [live, setLive] = useState(false)
+  // Set from onLoadedMetadata. Attaching a stream is not the same as having a
+  // frame to read: until the video reports real dimensions, drawing it to a
+  // canvas yields a 0x0 image.
+  const [ready, setReady] = useState(false)
+  // Shown inside the dialog. The dialog covers the viewport, so an error
+  // rendered by the page underneath is invisible — which looks to the signer
+  // exactly like the button doing nothing.
+  const [error, setError] = useState<string | null>(null)
 
   /** The camera must never outlive this component, however it unmounts. */
   function stopCamera() {
     streamRef.current?.getTracks().forEach((track) => track.stop())
     streamRef.current = null
     setLive(false)
+    setReady(false)
   }
 
   useEffect(() => stopCamera, [])
 
   async function record(payload: { consent: Consent; image?: string }) {
     setBusy(true)
+    setError(null)
     try {
       await onDecision(payload)
-    } finally {
       stopCamera()
+    } catch {
+      // Deliberately leaves the camera running so the signer can simply press
+      // the button again, rather than being sent back to the start.
+      setError('That could not be saved. Please try again.')
+    } finally {
       setBusy(false)
     }
   }
@@ -75,12 +89,27 @@ export default function PhotoConsent({ onDecision }: Props) {
 
   function capture() {
     const video = videoRef.current
-    if (!video) return
+
+    // A stream can be attached before the browser has decoded a frame, and in
+    // that state videoWidth is 0. Drawing it produces a 0x0 canvas and a
+    // "data:," URL the server rejects — so refuse here, where the message can
+    // actually say something useful.
+    if (!video || !video.videoWidth || !video.videoHeight) {
+      setError('The camera is still starting. Give it a moment and try again.')
+      return
+    }
 
     const canvas = document.createElement('canvas')
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
-    canvas.getContext('2d')?.drawImage(video, 0, 0)
+
+    const context = canvas.getContext('2d')
+    if (!context) {
+      setError('This browser could not capture from the camera.')
+      return
+    }
+
+    context.drawImage(video, 0, 0)
 
     // The server re-encodes this anyway, stripping metadata; JPEG here just
     // keeps the request small.
@@ -106,9 +135,16 @@ export default function PhotoConsent({ onDecision }: Props) {
             ref={videoRef}
             playsInline
             muted
+            onLoadedMetadata={(event) =>
+              setReady(event.currentTarget.videoWidth > 0)
+            }
             className="mx-auto block max-h-64 w-auto"
           />
         </div>
+      )}
+
+      {error && (
+        <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>
       )}
 
       <div className="mt-4 flex gap-2">
@@ -116,10 +152,10 @@ export default function PhotoConsent({ onDecision }: Props) {
           <button
             type="button"
             onClick={capture}
-            disabled={busy}
+            disabled={busy || !ready}
             className="flex-1 rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-800 disabled:bg-slate-300"
           >
-            Take photo
+            {busy ? 'Saving…' : ready ? 'Take photo' : 'Starting camera…'}
           </button>
         ) : (
           <button
