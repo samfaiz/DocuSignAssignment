@@ -38,6 +38,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/envelopes/{envelope}/void', [EnvelopeController::class, 'void']);
     Route::get('/envelopes/{envelope}/audit', [EnvelopeController::class, 'auditTrail']);
     Route::get('/envelopes/{envelope}/download', [EnvelopeController::class, 'download']);
+    Route::get('/envelopes/{envelope}/recipients/{recipient}/photo',
+        [EnvelopeController::class, 'recipientPhoto']);
 });
 
 /*

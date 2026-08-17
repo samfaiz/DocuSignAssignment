@@ -238,6 +238,29 @@ class EnvelopeController extends Controller
         ]);
     }
 
+    /**
+     * Streams a signer's photograph to the sender.
+     *
+     * Scoped through the envelope rather than by recipient id alone, so a
+     * guessed identifier from someone else's envelope resolves to nothing.
+     */
+    public function recipientPhoto(
+        Request $request,
+        Envelope $envelope,
+        Recipient $recipient
+    ): StreamedResponse {
+        $this->authorizeSender($request, $envelope);
+
+        abort_unless($recipient->envelope_id === $envelope->id, 404);
+        abort_unless($recipient->hasPhoto(), 404, 'No photograph was captured.');
+
+        return Storage::disk(config('signing.storage_disk'))->download(
+            $recipient->photo_storage_key,
+            "signing-photo-{$recipient->id}.jpg",
+            ['Content-Type' => 'image/jpeg']
+        );
+    }
+
     public function download(Request $request, Envelope $envelope): StreamedResponse
     {
         $this->authorizeSender($request, $envelope);

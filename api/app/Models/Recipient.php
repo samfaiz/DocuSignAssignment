@@ -54,7 +54,32 @@ class Recipient extends Model
      * Token and OTP hashes must never reach an API response — a signer's own
      * payload would otherwise leak the credential that authenticates them.
      */
-    protected $hidden = ['access_token_hash', 'otp_hash'];
+    protected $hidden = [
+        'access_token_hash',
+        'otp_hash',
+        // An internal storage path. The admin UI fetches the image through an
+        // authorised endpoint; handing out the key invites someone to try
+        // reaching the object store directly.
+        'photo_storage_key',
+    ];
+
+    /** Serialised alongside the columns so the admin UI need not derive them. */
+    protected $appends = ['location_summary', 'photo_summary', 'has_photo'];
+
+    public function getLocationSummaryAttribute(): string
+    {
+        return $this->locationSummary();
+    }
+
+    public function getPhotoSummaryAttribute(): string
+    {
+        return $this->photoSummary();
+    }
+
+    public function getHasPhotoAttribute(): bool
+    {
+        return $this->hasPhoto();
+    }
 
     protected function casts(): array
     {

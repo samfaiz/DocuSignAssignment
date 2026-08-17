@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { api, type ChainStatus, type EnvelopeDetail as Detail } from '../lib/api'
+import SignerEvidence from '../components/SignerEvidence'
 import { useTourStep } from '../lib/tour'
 import { StatusBadge } from './Envelopes'
 
@@ -124,36 +125,32 @@ export default function EnvelopeDetail() {
       </div>
 
       <Panel title="Recipients">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-slate-500">
-            <tr>
-              <th className="pb-2 font-medium">Name</th>
-              <th className="pb-2 font-medium">Email</th>
-              <th className="pb-2 font-medium">Verified by</th>
-              <th className="pb-2 font-medium">Signed</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {envelope.recipients.map((recipient) => (
-              <tr key={recipient.id}>
-                <td className="py-2">{recipient.name}</td>
-                <td className="py-2 text-slate-600">{recipient.email}</td>
-                <td className="py-2 text-xs text-slate-600">
-                  {recipient.auth_method ?? '—'}
-                </td>
-                <td className="py-2 text-xs">
+        <div className="divide-y divide-slate-100">
+          {envelope.recipients.map((recipient) => (
+            <div key={recipient.id} className="py-3 first:pt-0 last:pb-0">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">{recipient.name}</p>
+                  <p className="text-xs text-slate-500">{recipient.email}</p>
+                </div>
+                <div className="text-right text-xs">
                   {recipient.signed_at ? (
                     <span className="text-emerald-700">
-                      {new Date(recipient.signed_at).toLocaleString()}
+                      Signed {new Date(recipient.signed_at).toLocaleString()}
                     </span>
                   ) : (
                     <span className="text-slate-400">{recipient.status}</span>
                   )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <p className="text-slate-500">
+                    {recipient.auth_method ?? 'Not yet verified'}
+                  </p>
+                </div>
+              </div>
+
+              <SignerEvidence envelopeUuid={uuid} recipient={recipient} />
+            </div>
+          ))}
+        </div>
       </Panel>
 
       <Panel title={`Audit trail (${envelope.audit_events.length} events)`}>

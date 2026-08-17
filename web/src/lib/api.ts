@@ -146,6 +146,12 @@ export const api = {
       auth: true,
     }),
 
+  recipientPhotoBlob: (uuid: string, recipientId: number) =>
+    request<Blob>(`/envelopes/${uuid}/recipients/${recipientId}/photo`, {
+      auth: true,
+      raw: true,
+    }),
+
   sealedBlob: (uuid: string) =>
     request<Blob>(`/envelopes/${uuid}/download`, { auth: true, raw: true }),
 
@@ -408,6 +414,14 @@ export type EnvelopeDetail = Omit<EnvelopeSummary, 'recipients' | 'document'> & 
     status: string
     signed_at: string | null
     auth_method: string | null
+    last_ip: string | null
+    location_consent: string | null
+    location_summary: string
+    latitude: number | null
+    longitude: number | null
+    photo_consent: string | null
+    photo_summary: string
+    has_photo: boolean
   }[]
   fields: PlacedField[]
   sealed_document: SealedDocument | null
