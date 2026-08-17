@@ -3,8 +3,6 @@ import { useState } from 'react'
 type Consent = 'granted' | 'denied' | 'unsupported' | 'failed'
 
 type Props = {
-  /** Whatever the server already has, so a reload does not re-ask. */
-  current: string
   onDecision: (payload: {
     consent: Consent
     latitude?: number
@@ -14,27 +12,21 @@ type Props = {
 }
 
 /**
- * Optional location sharing.
+ * The location question, asked once inside a dialog.
  *
- * Two rules shape this component. The signer is told what will be recorded
- * *before* the browser permission prompt appears — a prompt with no context is
- * how people end up consenting to things they did not understand. And declining
- * is a first-class outcome: it is recorded, it never blocks signing, and the
- * button to decline is exactly as prominent as the button to share.
+ * The signer is told what will be recorded before the browser's own permission
+ * prompt appears — a prompt with no context is how people end up agreeing to
+ * things they did not understand. Refusing is a first-class answer: it is
+ * recorded, it never blocks signing, and its button sits beside the other one
+ * rather than hidden as a link.
  */
-export default function LocationConsent({ current, onDecision }: Props) {
+export default function LocationConsent({ onDecision }: Props) {
   const [busy, setBusy] = useState(false)
-  const [decided, setDecided] = useState(current !== 'not_asked')
-  const [outcome, setOutcome] = useState<Consent | null>(
-    current !== 'not_asked' ? (current as Consent) : null,
-  )
 
   async function record(payload: Parameters<Props['onDecision']>[0]) {
     setBusy(true)
     try {
       await onDecision(payload)
-      setOutcome(payload.consent)
-      setDecided(true)
     } finally {
       setBusy(false)
     }
@@ -48,73 +40,51 @@ export default function LocationConsent({ current, onDecision }: Props) {
 
     setBusy(true)
     navigator.geolocation.getCurrentPosition(
-      (position) => {
+      (position) =>
         void record({
           consent: 'granted',
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-        })
-      },
-      (error) => {
-        // PERMISSION_DENIED is a decision; anything else is the device failing
-        // to work it out. Recording them as the same thing would misrepresent
-        // a signer who agreed but was indoors with no signal.
+        }),
+      (error) =>
+        // Refusing the browser prompt is a decision; a device that cannot get a
+        // fix is a different fact. Recording them identically would misrepresent
+        // someone who agreed but was indoors with no signal.
         void record({
           consent: error.code === error.PERMISSION_DENIED ? 'denied' : 'failed',
-        })
-      },
+        }),
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     )
   }
 
-  if (decided) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <p className="text-sm font-medium text-slate-700">Location</p>
-        <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-          {outcome === 'granted' && 'Shared and recorded with your signature.'}
-          {outcome === 'denied' &&
-            'Not shared. Your decision was recorded; signing continues normally.'}
-          {outcome === 'unsupported' &&
-            'Your browser does not offer location sharing. Recorded as unavailable.'}
-          {outcome === 'failed' &&
-            'Your device could not determine a location. Recorded as attempted.'}
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-sm font-medium text-slate-700">
-        Share your location?{' '}
-        <span className="font-normal text-slate-400">Optional</span>
-      </p>
-      <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-        Adds approximate coordinates to the signing record, alongside the time and
-        IP address already captured. Your browser will ask permission first, and
-        the coordinates appear on the certificate attached to the signed document.
+    <div>
+      <p className="text-[13px] leading-relaxed text-slate-700">
+        This adds approximate coordinates to the signing record, alongside the
+        time and IP address already captured. Your browser will ask permission
+        first, and the location appears on the certificate attached to the signed
+        document.
       </p>
       <p className="mt-2 text-[12px] leading-relaxed text-slate-500">
-        Declining changes nothing about your signature or its validity — the
-        decision is simply recorded either way.
+        Declining changes nothing about your signature or its validity. Either
+        way, your answer is recorded.
       </p>
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-4 flex gap-2">
         <button
           type="button"
           onClick={share}
           disabled={busy}
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium transition hover:bg-slate-50 disabled:opacity-50"
+          className="flex-1 rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-800 disabled:bg-slate-300"
         >
-          {busy ? 'Waiting…' : 'Share location'}
+          {busy ? 'Waiting…' : 'Share my location'}
         </button>
         <button
           type="button"
           onClick={() => void record({ consent: 'denied' })}
           disabled={busy}
-          className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
+          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
         >
           No thanks
         </button>

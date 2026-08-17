@@ -3,30 +3,26 @@ import { useEffect, useRef, useState } from 'react'
 type Consent = 'granted' | 'denied' | 'unsupported' | 'failed'
 
 type Props = {
-  current: string
   onDecision: (payload: { consent: Consent; image?: string }) => Promise<void>
 }
 
 /**
- * Optional photograph at signing, when the sender has asked for one.
+ * The photograph question, asked once inside a dialog.
  *
- * A face image is biometric data, so this component is deliberately careful:
- * the camera is not touched until the signer presses a button, the live preview
- * is stopped the instant a picture is taken or the step ends, and declining is
- * as easy as agreeing. The wording avoids "verify" throughout — a photograph
- * without a document check and a liveness test is evidence of presence, not
- * proof of identity, and telling the signer otherwise would be a lie.
+ * A face image is biometric data, so this is deliberately careful: the camera
+ * is not touched until the signer presses a button, the stream stops the
+ * instant a picture is taken or the dialog goes away, and refusing is as easy
+ * as agreeing. The wording never says "verify" — a photograph without a
+ * document check and a liveness test shows that someone was present and
+ * willing, not who they are, and implying otherwise would be a lie told at the
+ * exact moment the signer is deciding.
  */
-export default function PhotoConsent({ current, onDecision }: Props) {
+export default function PhotoConsent({ onDecision }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
 
   const [busy, setBusy] = useState(false)
   const [live, setLive] = useState(false)
-  const [decided, setDecided] = useState(current !== 'not_asked')
-  const [outcome, setOutcome] = useState<Consent | null>(
-    current !== 'not_asked' ? (current as Consent) : null,
-  )
 
   /** The camera must never outlive this component, however it unmounts. */
   function stopCamera() {
@@ -41,8 +37,6 @@ export default function PhotoConsent({ current, onDecision }: Props) {
     setBusy(true)
     try {
       await onDecision(payload)
-      setOutcome(payload.consent)
-      setDecided(true)
     } finally {
       stopCamera()
       setBusy(false)
@@ -69,8 +63,7 @@ export default function PhotoConsent({ current, onDecision }: Props) {
       }
     } catch (error) {
       // Refusing the browser prompt is a decision; a camera that is missing or
-      // already in use is a different fact, and the record should not conflate
-      // someone who said no with someone whose webcam was busy.
+      // already in use by another application is a different fact.
       const denied =
         error instanceof DOMException &&
         (error.name === 'NotAllowedError' || error.name === 'SecurityError')
@@ -89,36 +82,14 @@ export default function PhotoConsent({ current, onDecision }: Props) {
     canvas.height = video.videoHeight
     canvas.getContext('2d')?.drawImage(video, 0, 0)
 
-    // The server re-encodes this anyway, stripping any metadata; sending JPEG
-    // just keeps the request small.
+    // The server re-encodes this anyway, stripping metadata; JPEG here just
+    // keeps the request small.
     void record({ consent: 'granted', image: canvas.toDataURL('image/jpeg', 0.85) })
   }
 
-  if (decided) {
-    return (
-      <div className="rounded-lg border border-slate-200 bg-white p-4">
-        <p className="text-sm font-medium text-slate-700">Photograph</p>
-        <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
-          {outcome === 'granted' &&
-            'Taken and stored with the signing record. It is kept as evidence of presence, not as identity verification.'}
-          {outcome === 'denied' &&
-            'Not taken. Your decision was recorded; signing continues normally.'}
-          {outcome === 'unsupported' &&
-            'Your browser does not offer camera access. Recorded as unavailable.'}
-          {outcome === 'failed' &&
-            'The camera could not be started. Recorded as attempted.'}
-        </p>
-      </div>
-    )
-  }
-
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-sm font-medium text-slate-700">
-        Photograph at signing?{' '}
-        <span className="font-normal text-slate-400">Optional</span>
-      </p>
-      <p className="mt-1 text-[13px] leading-relaxed text-slate-600">
+    <div>
+      <p className="text-[13px] leading-relaxed text-slate-700">
         The sender has asked for a photo to accompany this signature. It is taken
         by your own device, stored with the signing record, and appears on the
         certificate attached to the signed document.
@@ -135,18 +106,18 @@ export default function PhotoConsent({ current, onDecision }: Props) {
             ref={videoRef}
             playsInline
             muted
-            className="mx-auto block max-h-56 w-auto"
+            className="mx-auto block max-h-64 w-auto"
           />
         </div>
       )}
 
-      <div className="mt-3 flex gap-2">
+      <div className="mt-4 flex gap-2">
         {live ? (
           <button
             type="button"
             onClick={capture}
             disabled={busy}
-            className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-blue-800 disabled:opacity-50"
+            className="flex-1 rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-800 disabled:bg-slate-300"
           >
             Take photo
           </button>
@@ -155,16 +126,16 @@ export default function PhotoConsent({ current, onDecision }: Props) {
             type="button"
             onClick={startCamera}
             disabled={busy}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium transition hover:bg-slate-50 disabled:opacity-50"
+            className="flex-1 rounded-md bg-blue-700 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-800 disabled:bg-slate-300"
           >
-            {busy ? 'Starting…' : 'Use camera'}
+            {busy ? 'Starting…' : 'Open camera'}
           </button>
         )}
         <button
           type="button"
           onClick={() => void record({ consent: 'denied' })}
           disabled={busy}
-          className="rounded-md px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:bg-slate-100 disabled:opacity-50"
+          className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
         >
           No thanks
         </button>

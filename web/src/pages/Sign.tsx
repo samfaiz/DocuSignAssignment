@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import LocationConsent from '../components/LocationConsent'
+import Modal from '../components/Modal'
 import PhotoConsent from '../components/PhotoConsent'
 import PdfViewer, { type PageBox } from '../components/PdfViewer'
 import SignaturePad, { type AdoptedSignature } from '../components/SignaturePad'
@@ -186,6 +187,18 @@ export default function Sign() {
             : '',
   )
 
+  // Asked as dialogs rather than sidebar cards, one after the other, because a
+  // consent question tucked beside the document is easy to scroll past. Each
+  // renders only while unanswered, so answering closes it and reveals the next.
+  const askLocation =
+    step === 'sign' && (payload?.recipient.location_consent ?? 'not_asked') === 'not_asked'
+
+  const askPhoto =
+    step === 'sign' &&
+    !askLocation &&
+    Boolean(payload?.envelope.require_photo) &&
+    (payload?.recipient.photo_consent ?? 'not_asked') === 'not_asked'
+
   /* ------------------------------------------------------------- render */
 
   if (step === 'loading') {
@@ -344,6 +357,28 @@ export default function Sign() {
 
         {/* -------------------------------------------------------- step 3 */}
         {step === 'sign' && (
+          <>
+            <Modal open={askLocation} title="Share your location?">
+              <LocationConsent
+                onDecision={async (decision) => {
+                  await signerApi.shareLocation(uuid, token, decision)
+                  await load()
+                }}
+              />
+            </Modal>
+
+            <Modal open={askPhoto} title="Photograph at signing?">
+              <PhotoConsent
+                onDecision={async (decision) => {
+                  await signerApi.capturePhoto(uuid, token, decision)
+                  await load()
+                }}
+              />
+            </Modal>
+          </>
+        )}
+
+        {step === 'sign' && (
           <div className="grid gap-6 lg:grid-cols-[340px_1fr]">
             <aside className="space-y-5">
               {!payload.my_turn && (
@@ -385,22 +420,10 @@ export default function Sign() {
                 )}
               </section>
 
-              {payload.envelope.require_photo && (
-                <PhotoConsent
-                  current={payload.recipient.photo_consent ?? 'not_asked'}
-                  onDecision={async (decision) => {
-                    await signerApi.capturePhoto(uuid, token, decision)
-                    await load()
-                  }}
-                />
-              )}
-
-              <LocationConsent
-                current={payload.recipient.location_consent ?? 'not_asked'}
-                onDecision={async (decision) => {
-                  await signerApi.shareLocation(uuid, token, decision)
-                  await load()
-                }}
+              <EvidenceStatus
+                location={payload.recipient.location_consent}
+                photo={payload.recipient.photo_consent}
+                photoRequested={payload.envelope.require_photo}
               />
 
               {textFields.length > 0 && (
@@ -521,6 +544,53 @@ function SignerFieldBox({
         </span>
       )}
     </div>
+  )
+}
+
+/**
+ * What was recorded, with no controls attached.
+ *
+ * Deliberately read-only: the decisions are made once in their dialogs, and a
+ * second set of buttons here would invite a signer to change an answer that has
+ * already been written to an append-only trail.
+ */
+function EvidenceStatus({
+  location,
+  photo,
+  photoRequested,
+}: {
+  location: string | null
+  photo: string | null
+  photoRequested: boolean
+}) {
+  const describe = (value: string | null) =>
+    ({
+      granted: 'Shared',
+      denied: 'Declined',
+      unsupported: 'Not available on this device',
+      failed: 'Attempted, unavailable',
+    })[value ?? ''] ?? 'Not asked'
+
+  const answered = (location ?? 'not_asked') !== 'not_asked' || photoRequested
+
+  if (!answered) return null
+
+  return (
+    <section className="rounded-lg border border-slate-200 bg-white p-4">
+      <h2 className="mb-2 text-sm font-semibold">Recorded with your signature</h2>
+      <dl className="space-y-1 text-xs">
+        <div className="flex gap-2">
+          <dt className="w-20 shrink-0 text-slate-500">Location</dt>
+          <dd className="text-slate-800">{describe(location)}</dd>
+        </div>
+        {photoRequested && (
+          <div className="flex gap-2">
+            <dt className="w-20 shrink-0 text-slate-500">Photo</dt>
+            <dd className="text-slate-800">{describe(photo)}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
   )
 }
 
