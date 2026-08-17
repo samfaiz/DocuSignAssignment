@@ -1,16 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { adminToken, api, ApiError } from '../lib/api'
+import { adminToken, api, ApiError, demoApi } from '../lib/api'
 import { useTourStep } from '../lib/tour'
 
 export default function Login() {
   useTourStep('admin.login')
 
   const navigate = useNavigate()
-  const [email, setEmail] = useState('admin@signdesk.test')
-  const [password, setPassword] = useState('password')
+  // Never prefilled with a guess. The credentials below are fetched from the
+  // API, so this page can only ever advertise a login that actually works.
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  // Only present when the deployment has demo mode on; absent in production,
+  // where publishing any working credential would be indefensible.
+  const [demo, setDemo] = useState<{ email: string; password: string } | null>(null)
+
+  useEffect(() => {
+    demoApi
+      .info()
+      .then(({ admin }) => setDemo(admin))
+      .catch(() => setDemo(null))
+  }, [])
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
@@ -86,9 +99,26 @@ export default function Login() {
             {busy ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <p className="text-center text-xs text-slate-500">
-            Seeded credentials: admin@signdesk.test / password
-          </p>
+          {demo && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5">
+              <p className="text-xs font-medium text-slate-600">Demo account</p>
+              <p className="mt-1 break-all font-mono text-[11px] text-slate-600">
+                {demo.email}
+                <br />
+                {demo.password}
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail(demo.email)
+                  setPassword(demo.password)
+                }}
+                className="mt-2 text-xs font-medium text-blue-700 underline hover:text-blue-800"
+              >
+                Fill these in
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </div>
