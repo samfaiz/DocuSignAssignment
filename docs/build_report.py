@@ -168,7 +168,7 @@ table(
 )
 
 h2("How to read this document")
-p("Sections 3, 4, 6, 7 and 8 answer the five questions set with the assignment: "
+p("Sections 4, 5, 7, 8 and 9 answer the five questions set with the assignment: "
   "the tech stack, why that stack and not the alternatives, the competition and "
   "their pricing, the security case for building in-house, and the core concepts "
   "of digital signatures. The remaining sections describe what was actually "
@@ -176,7 +176,7 @@ p("Sections 3, 4, 6, 7 and 8 answer the five questions set with the assignment: 
 
 p("Every claim about signature levels, trusted timestamps and tamper detection "
   "is reproducible, and is confirmed by pyHanko's command-line validator - a "
-  "tool that is not part of this codebase. Section 11 shows that output.")
+  "tool that is not part of this codebase. Section 12 shows that output.")
 
 h1("1. The assignment")
 
@@ -235,7 +235,173 @@ note("Those conveniences are gated behind a demo flag that defaults to on only i
 
 story.append(PageBreak())
 
-h1("3. Question one: tech stack")
+h1("3. The technical terms, in plain English")
+
+p("This section exists so the rest of the document can be read without a "
+  "background in cryptography. Nothing here is simplified to the point of being "
+  "wrong - each entry is the honest short version.")
+
+h2("Signing and cryptography")
+table(
+    ["Term", "What it actually means"],
+    [
+        ["Hash, or SHA-256",
+         "A fingerprint of a file. Put in any amount of data, get back 64 "
+         "characters. Change one letter anywhere and the fingerprint changes "
+         "completely, and you cannot work backwards from it to the file."],
+        ["Public and private key",
+         "A matched pair of numbers. What one locks, only the other unlocks. You "
+         "keep the private one secret and hand out the public one."],
+        ["Digital signature",
+         "Take the document's fingerprint, lock it with your private key, and "
+         "attach the result. Anyone can re-fingerprint the document and unlock "
+         "your attachment with your public key. If the two match, nothing has "
+         "changed and the holder of that private key signed it."],
+        ["Certificate",
+         "A file saying \"this public key belongs to this person or "
+         "organisation\", signed by an authority. Like a passport - useful only "
+         "because of who issued it."],
+        ["Certificate authority (CA)",
+         "The body that issues certificates. Adobe and your operating system ship "
+         "with a list of the ones they trust. A certificate from outside that "
+         "list still works cryptographically, but shows as untrusted."],
+        ["PKCS#7, or CMS",
+         "The standard envelope the signature is packed into: the locked "
+         "fingerprint, the certificate, and a few details such as the claimed "
+         "signing time."],
+        ["PKCS#12, or a .p12 file",
+         "A password-protected file holding a certificate and its private key "
+         "together. This is what the sealing service loads to sign with."],
+        ["Timestamp authority, RFC 3161",
+         "An independent service that stamps the time onto your signature using "
+         "its own clock. Needed because your own computer's clock proves nothing "
+         "- you could set it to any date you like."],
+        ["Revocation, CRL, OCSP",
+         "A certificate can be cancelled before its expiry date, for instance if "
+         "the key is stolen. A CRL is the published list of cancelled ones. "
+         "Checking that list is how a verifier knows the certificate was still "
+         "good at the moment of signing."],
+    ],
+    [W * 0.24, W * 0.76],
+)
+
+h2("How a signature lives inside a PDF")
+table(
+    ["Term", "What it actually means"],
+    [
+        ["ByteRange",
+         "A signature cannot sign itself - writing it in would change the very "
+         "bytes it just fingerprinted. So the PDF leaves a gap for it, and the "
+         "ByteRange records \"everything except this gap is what was signed\"."],
+        ["Incremental update",
+         "PDFs are added to rather than rewritten. Signing appends to the end of "
+         "the file, which is why every earlier version of the document is still "
+         "inside it and can be recovered."],
+        ["PAdES",
+         "The rulebook for putting signatures into PDFs, so that every reader "
+         "agrees on what a valid one looks like."],
+        ["DSS dictionary",
+         "A pocket inside the PDF where the certificate chain and the revocation "
+         "paperwork are stored, so a verifier does not have to fetch them from "
+         "the internet years later."],
+        ["Long-term validation (LTV)",
+         "The general idea of putting everything a future verifier needs inside "
+         "the file itself, because websites and certificate authorities do not "
+         "last forever."],
+    ],
+    [W * 0.24, W * 0.76],
+)
+
+h2("What PAdES-B-LTA actually means")
+p("Four letters doing a lot of work. Each level adds one thing to the one before:")
+table(
+    ["Level", "Plain English", "The question it answers"],
+    [
+        ["B-B", "It is signed.",
+         "Has anyone changed this document since? Who held the signing key?"],
+        ["B-T", "Plus an independent timestamp.",
+         "When was it signed, according to a clock nobody involved controls?"],
+        ["B-LT", "Plus the paperwork to check the certificate.",
+         "Can this still be checked after the issuing authority shuts down?"],
+        ["<b>B-LTA</b>", "Plus that paperwork gets refreshed over time.",
+         "Will this still verify in twenty years, after the certificate itself "
+         "has expired?"],
+    ],
+    [W * 0.11, W * 0.37, W * 0.52],
+)
+
+p("So <b>PAdES-B-LTA</b> is the strongest of the four: a signed PDF, stamped by "
+  "an independent clock, carrying everything a future reader needs to check it, "
+  "in a form that can be topped up before the cryptography ages out. It is the "
+  "level used for documents expected to matter for decades - and it is what this "
+  "system produces.")
+
+h2("Security terms used later")
+table(
+    ["Term", "What it actually means"],
+    [
+        ["Hash chain",
+         "Each entry in the audit log includes the fingerprint of the entry "
+         "before it. Change entry five and every entry after it stops adding up - "
+         "like a numbered ledger where each page quotes the previous page."],
+        ["Append-only",
+         "Rows can be added but never edited or deleted. Enforced by the database "
+         "itself here, not merely by the application."],
+        ["bcrypt",
+         "A deliberately slow way of storing a password or passcode. Slowness is "
+         "the feature: it makes guessing millions of possibilities impractical."],
+        ["One-time passcode (OTP)",
+         "The six digits emailed to the signer, usable once and only for a few "
+         "minutes."],
+        ["HMAC",
+         "A shared secret used to prove a message came from who it claims and was "
+         "not altered on the way. Used between the API and the sealing service."],
+        ["IDOR",
+         "A common bug where changing an identifier in a URL shows you someone "
+         "else's data. Prevented here by scoping every lookup to the person "
+         "asking, rather than trusting the identifier."],
+        ["Rate limiting",
+         "Capping how often something can be attempted, so automated guessing "
+         "becomes impractical."],
+        ["EXIF",
+         "Hidden data cameras write into photographs - the model, the time, and "
+         "very often the GPS coordinates. Stripped here, because this system asks "
+         "about location separately."],
+    ],
+    [W * 0.24, W * 0.76],
+)
+
+h2("Everything else")
+table(
+    ["Term", "What it actually means"],
+    [
+        ["API", "The set of web addresses the front end talks to. It returns data, "
+                "not pages."],
+        ["Single-page app (SPA)",
+         "The browser loads one page and rewrites parts of it as you navigate, "
+         "instead of fetching a whole new page each time."],
+        ["Bearer token",
+         "A random string that proves you are logged in, sent with every request."],
+        ["Queue and worker",
+         "Slow jobs are handed to a background process so the person clicking is "
+         "not left waiting. Sealing runs here, because it talks to a timestamp "
+         "authority over the internet."],
+        ["jsonb",
+         "PostgreSQL's way of storing flexible, nested data that is still "
+         "searchable - used for the details attached to each audit entry."],
+        ["SMTP", "The protocol for sending email. Configured from the admin screen "
+                 "rather than a config file, so mail can be fixed without shell "
+                 "access."],
+        ["Envelope",
+         "The industry's word for one document sent out for signature, along with "
+         "its recipients, fields and history. Borrowed from DocuSign."],
+    ],
+    [W * 0.24, W * 0.76],
+)
+
+story.append(PageBreak())
+
+h1("4. Question one: tech stack")
 
 table(
     ["Layer", "Choice"],
@@ -261,7 +427,7 @@ table(
 p("Three processes run: a React single-page app, a Laravel API, and a Python "
   "sealing service the API calls over a private network with no public ingress.")
 
-h1("4. Question two: why this stack, and why not the alternatives")
+h1("5. Question two: why this stack, and why not the alternatives")
 
 h2("Laravel for the API")
 p("The feature list is almost exactly Laravel's standard equipment: queues for "
@@ -353,7 +519,7 @@ p("The private key would have to reach the client. That is unacceptable key "
 
 story.append(PageBreak())
 
-h1("5. Working flow")
+h1("6. Working flow")
 
 p("Three stages. The first two are interactive; the third runs on a queue.")
 
@@ -411,7 +577,7 @@ p("Every step writes a hash-chained audit event. Each row's hash covers the "
 
 story.append(PageBreak())
 
-h1("6. Question three: competition and cost")
+h1("7. Question three: competition and cost")
 
 note("List prices verified August 2026. Annual billing unless stated. Amounts in "
      "USD unless marked INR.")
@@ -493,7 +659,7 @@ p("<b>The honest conclusion:</b> build in-house when signing is a feature of you
 
 story.append(PageBreak())
 
-h1("7. Question four: security of building in-house versus buying")
+h1("8. Question four: security of building in-house versus buying")
 
 h2("Real advantages of building it")
 bullets([
@@ -546,7 +712,7 @@ p("A hybrid. Own the interface, the storage, the workflow and the evidence; "
 
 story.append(PageBreak())
 
-h1("8. Question five: core concepts, and what a signature captures")
+h1("9. Question five: core concepts, and what a signature captures")
 
 h2("An electronic signature is not a digital signature")
 p("An <b>electronic signature</b> is a legal concept: any electronic symbol or "
@@ -668,7 +834,7 @@ p("It is worth being precise about what that achieves. A hash chain makes "
 
 story.append(PageBreak())
 
-h1("9. Security controls implemented")
+h1("10. Security controls implemented")
 
 bullets([
     "Signing tokens are 256-bit and stored only as SHA-256, so a database dump "
@@ -694,7 +860,7 @@ bullets([
     "Mail credentials are encrypted at rest and never returned by the API.",
 ])
 
-h1("10. Privacy: what is captured, and what is deleted")
+h1("11. Privacy: what is captured, and what is deleted")
 
 p("Location and photograph are both optional, consented, and enabled per "
   "envelope. Declining is recorded as a decision, never blocks signing, and the "
@@ -713,7 +879,7 @@ p("Without a government document, a face match against it and liveness "
   "detection, a photograph establishes that someone was present and willing to be "
   "photographed - not who they are. The certificate says so in those words. Real "
   "identity verification belongs with a licensed provider such as Onfido or "
-  "Persona, which is the same buy-versus-build line argued in section 7.")
+  "Persona, which is the same buy-versus-build line argued in section 8.")
 
 h2("Retention is enforced, not merely described")
 p("A scheduled command runs daily: photographs are deleted after 90 days, "
@@ -732,7 +898,7 @@ note("One limitation stated plainly: a sealed document already delivered is "
 
 story.append(PageBreak())
 
-h1("11. Proof that it works")
+h1("12. Proof that it works")
 
 p("None of the following is self-assessment. The signature is validated by "
   "pyHanko's command-line tool, which is not part of this codebase.")
@@ -768,7 +934,7 @@ p("A test seals a document, changes one byte of page content, and re-validates. 
   "which is exactly the point. The same file through the pyHanko CLI returns "
   "<b>INVALID</b>.")
 
-h1("12. Engineering notes")
+h1("13. Engineering notes")
 
 p("Bugs worth recording, because several were only reachable in production and "
   "each one taught something.")
@@ -801,7 +967,7 @@ bullets([
     "so the render promise never resolves in a background tab.",
 ])
 
-h1("13. Known limitations")
+h1("14. Known limitations")
 
 bullets([
     "<b>The development CA is not a public trust anchor.</b> Adobe shows the "
