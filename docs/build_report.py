@@ -150,228 +150,126 @@ W = doc.width
 
 story.append(Paragraph("SignDesk", S["title"]))
 story.append(Paragraph(
-    "A digital document signing platform: send a PDF by email, sign it in the "
-    "browser, and get back a cryptographically sealed file. "
-    "Prepared August 2026.",
+    "A digital document signing platform. Send a PDF by email, sign it in the "
+    "browser, and receive a file sealed with a PAdES-B-LTA digital signature and "
+    "a trusted timestamp.",
     S["subtitle"],
 ))
 
-p("This document covers how to run and use the system, how a document actually "
-  "flows through it, and the five questions set with the assignment: the tech "
-  "stack, why that stack and not the alternatives, the competition and their "
-  "pricing, the security case for building in-house rather than buying, and the "
-  "core concepts of digital signatures.")
+table(
+    ["", ""],
+    [
+        ["<b>Live demo</b>", "https://docsignass.faisalkhan.cloud/demo"],
+        ["<b>Source</b>", "https://github.com/samfaiz/DocuSignAssignment"],
+        ["<b>Demo login</b>", "demo@signdesk.test / demo-signdesk-2026"],
+        ["<b>Prepared</b>", "August 2026"],
+    ],
+    [W * 0.22, W * 0.78],
+)
 
-p("Everything described here was built and runs. Every claim about signature "
-  "levels, trusted timestamps and tamper detection is reproducible with the "
-  "commands in section 10 - and is confirmed by pyHanko's command-line "
-  "validator, which is not part of this codebase.")
+h2("How to read this document")
+p("Sections 3, 4, 6, 7 and 8 answer the five questions set with the assignment: "
+  "the tech stack, why that stack and not the alternatives, the competition and "
+  "their pricing, the security case for building in-house, and the core concepts "
+  "of digital signatures. The remaining sections describe what was actually "
+  "built, which runs and is deployed.")
 
-h2("What it does")
+p("Every claim about signature levels, trusted timestamps and tamper detection "
+  "is reproducible, and is confirmed by pyHanko's command-line validator - a "
+  "tool that is not part of this codebase. Section 11 shows that output.")
+
+h1("1. The assignment")
+
+story.append(Paragraph(
+    "<i>Digital Docu sign</i> - Admin should be able to send an email with a PDF "
+    "and a link to digitally sign the document on my portal, plus a normal "
+    "signature feature like Adobe Acrobat: import an image (PNG signature), or "
+    "write a name which automatically mimics a signature using a "
+    "signature-friendly font.",
+    S["body"],
+))
+story.append(Paragraph(
+    "<i>Plan: (1) tech stack, (2) reason for selecting it and why not others, "
+    "(3) competition with monthly costing, (4) security benefits of an in-house "
+    "solution versus third party, (5) core concepts of digital signatures and "
+    "what they capture.</i>",
+    S["body"],
+))
+
+h1("2. What was built")
+
 bullets([
-    "Admin portal: upload a PDF, click to place fields per recipient, send, track status.",
-    "Signer portal: tokenised email link, one-time passcode, consent, sign, done.",
-    "Three signature modes: draw, upload a PNG or JPEG, or type a name in a script font.",
-    "Auto-generated Certificate of Completion recording identity method, consent "
-    "version, document hashes and the full event timeline.",
-    "<b>PAdES-B-LTA</b> sealing: PKCS#7 signature, RFC 3161 trusted timestamp, "
+    "<b>Admin portal</b> - upload a PDF, click the page to place fields per "
+    "recipient, send, and track status.",
+    "<b>Signer portal</b> - tokenised email link, one-time passcode, consent, "
+    "sign, done. Signers have no account.",
+    "<b>Three signature modes</b> - draw it, upload a PNG or JPEG, or type a name "
+    "rendered in one of five bundled script fonts.",
+    "<b>Server-side stamping</b> - the browser never decides where ink lands in "
+    "the final document.",
+    "<b>Certificate of Completion</b> - identity method, consent version, document "
+    "hashes and the full event timeline, appended to every signed document.",
+    "<b>PAdES-B-LTA sealing</b> - PKCS#7 signature, RFC 3161 trusted timestamp, "
     "embedded revocation data and a renewable document-timestamp chain.",
-    "Hash-chained, append-only audit trail enforced by database triggers.",
-    "Public verification page: upload any PDF and check whether it has been altered.",
+    "<b>Hash-chained, append-only audit trail</b> enforced by database triggers.",
+    "<b>Optional per envelope</b> - the signer's location and a photograph, both "
+    "consented, both recorded as reported rather than verified.",
+    "<b>Enforced retention</b> - photographs and coordinates deleted on a schedule.",
+    "<b>Admin-managed SMTP</b> - mail configured from the interface, password "
+    "encrypted at rest.",
+    "<b>Public verification</b> - upload any PDF and check whether it has been "
+    "altered since signing.",
 ])
 
-# ---------------------------------------------------------------- 1. run
+h2("Trying it")
+p("Open the demo link above and press <b>Start signing ceremony</b>. It creates "
+  "an agreement and drops you into the signer's shoes - no account, no terminal. "
+  "The one-time passcode is shown on screen rather than emailed, so there is no "
+  "inbox to hunt through. A <b>Guided tour</b> panel, off by default, follows "
+  "whichever step you are on and explains the decision behind it.")
 
-h1("1. Running the system")
-
-p("Requires PHP 8.3 (with the <font face='Courier'>pdo_pgsql</font> extension), "
-  "Composer, Node 20+, Python 3.12, Docker and OpenSSL. Three processes run: a "
-  "React SPA, a Laravel API, and a Python sealing service.")
-
-h2("Step 1 - infrastructure")
-code("docker compose up -d postgres redis minio minio-init mailpit pki-web")
-note("Postgres is published on 55432 and Redis on 63790, deliberately high. A "
-     "native PostgreSQL install on 5432 or 5433 would otherwise answer instead, "
-     "which surfaces as a confusing authentication failure rather than a "
-     "connection error.")
-
-h2("Step 2 - certificates")
-code("bash pki/scripts/gen-pki.sh")
-p("Creates a root CA, a document-signing certificate and a CRL, served by the "
-  "<font face='Courier'>pki-web</font> container on port 8080. <b>This is not "
-  "optional.</b> PAdES B-LT and B-LTA embed revocation data, and with the "
-  "distribution point unreachable an otherwise perfect signature validates as "
-  "INVALID.")
-
-h2("Step 3 - sealing service")
-code("cd sign-service\n"
-     "python -m venv .venv\n"
-     "./.venv/Scripts/python.exe -m pip install -r requirements.txt\n"
-     "python scripts/fetch_fonts.py\n"
-     "PKI_DIR=../pki/out ./.venv/Scripts/python.exe -m uvicorn app.main:app --port 8001")
-
-h2("Step 4 - API")
-code("cd api\n"
-     "composer install\n"
-     "php artisan migrate --seed\n"
-     "php artisan serve --port=8000\n"
-     "php artisan queue:work            # second terminal - sealing runs on the queue")
-p("Seeded administrator: <font face='Courier'>admin@signdesk.test</font> / "
-  "<font face='Courier'>password</font>. The queue worker holds the application "
-  "in memory, so restart it after changing code it touches.")
-
-h2("Step 5 - the SPA")
-code("cd web\nnpm install\nnpm run dev")
-p("Open <font face='Courier'>http://localhost:5173</font>. All outbound mail is "
-  "captured by Mailpit at <font face='Courier'>http://localhost:8025</font>, so "
-  "signing links and passcodes are readable without a real mailbox.")
-
-# ---------------------------------------------------------------- 2. use
-
-h1("2. Using it")
-
-h2("As the administrator")
-bullets([
-    "Sign in with the seeded credentials.",
-    "<b>New envelope</b>, then choose a PDF. It is validated, hashed and stored; "
-    "its pages render immediately.",
-    "Fill in each recipient's name and email. Each signer gets their own colour.",
-    "Pick a field type - signature, initial, date, text or checkbox - then click "
-    "the page to drop it. Fields belong to the highlighted signer. Hover a placed "
-    "field to remove it.",
-    "Add a subject and an optional note, set how long the link stays valid, then "
-    "<b>Send for signature</b>.",
-    "The envelope page then shows live status, the cryptographic seal once it "
-    "exists, and the full audit trail with its chain state.",
-], numbered=True)
-
-h2("As the signer")
-bullets([
-    "Open the emailed link. The email address is shown masked.",
-    "Request a code and enter it. Until this passes, the document itself is not served.",
-    "Read the electronic-records disclosure and agree.",
-    "Adopt a signature: draw it, type it and pick one of five script fonts, or "
-    "upload an image. Fill any date or text fields.",
-    "Click <b>I agree - sign this document</b>. The signed copy arrives by email "
-    "once every signer is finished.",
-], numbered=True)
-
-note("To get a working link without walking the admin UI, run "
-     "python api/tests/e2e/make_link.py - it creates and sends an envelope, then "
-     "prints the signer URL.")
+note("Those conveniences are gated behind a demo flag that defaults to on only in "
+     "a local environment. One of them reveals a live authentication factor, so "
+     "the routes do not register anywhere else and the controller re-checks the "
+     "flag. Turning the flag off removes them entirely.")
 
 story.append(PageBreak())
 
-# ---------------------------------------------------------------- 3. flow
-
-h1("3. Working flow")
-
-p("Three stages. The first two are interactive; the third runs on a queue.")
-
-h2("Stage 1 - the admin prepares and sends")
-
-p("<b>Upload.</b> The file's magic bytes are checked for the "
-  "<font face='Courier'>%PDF-</font> header, then it is handed to the Python "
-  "service, where a real parser confirms it opens, is not password-protected, "
-  "and reports its page count. Only then is it stored in object storage under a "
-  "random key - never the user's filename - and its SHA-256 recorded. That hash "
-  "is the anchor everything downstream is compared against.")
-
-p("<b>Field placement.</b> pdf.js renders the pages and clicking drops a field "
-  "for the selected recipient. Coordinates are stored as fractions of the page "
-  "between 0 and 1 with a top-left origin, not pixels, so a placement survives "
-  "zoom, screen DPI and the later conversion into PDF user space. Every field "
-  "belongs to exactly one recipient, which is what makes \"you cannot fill "
-  "someone else's field\" enforceable rather than merely hidden in the interface.")
-
-p("<b>Send.</b> Each recipient gets a 256-bit random token. Only its SHA-256 is "
-  "stored, so a database dump yields no working links. Invitations are queued.")
-
-h2("Stage 2 - the signer completes the ceremony")
-
-p("Signers have no account, so every request re-establishes who is calling from "
-  "the token alone. The token is looked up by hash and compared in constant time; "
-  "an expired link returns 410 and an unknown one 404.")
-
-p("<b>Passcode.</b> Six digits, hashed with bcrypt rather than SHA-256 - a "
-  "million possibilities would fall to an offline sweep against a fast hash - "
-  "expiring in ten minutes and locking out after five failures. The document is "
-  "not served until this passes: possession of a forwarded link is not enough.")
-
-p("<b>Consent.</b> Records the disclosure version and a hash of the exact text "
-  "shown, not a boolean. The question in a dispute is never whether someone "
-  "consented but to what wording.")
-
-p("<b>Signing.</b> Typed names are rendered to PNG on the server, so the artefact "
-  "sealed into the PDF does not depend on which fonts the signer happened to have "
-  "installed. Uploaded images are fully decoded and re-encoded, which strips EXIF "
-  "and anything else riding along with the pixels. Clicking the final button is "
-  "logged as its own intent event, separate from having filled the fields in - "
-  "that distinction is what the ESIGN Act and UETA actually turn on. The token is "
-  "then burned.")
-
-h2("Stage 3 - the server seals and delivers")
-
-p("Queued, because sealing makes a network round trip to a timestamp authority "
-  "and fetches revocation data. That takes seconds and can fail for reasons "
-  "nothing to do with the signer, so it retries with widening backoff rather than "
-  "turning a transient outage into a failed signature.")
-
-p("The job reads field coordinates from the database, never from the finishing "
-  "request, so a signer cannot move their own signature elsewhere in the document "
-  "on the way out. It builds the certificate payload from the audit trail, then "
-  "makes a single call to the Python service, which composites the marks, appends "
-  "the evidence page and applies the seal in one pass - the half-finished "
-  "document, carrying signatures but no cryptographic protection, never touches "
-  "disk or crosses the network. The level actually achieved is stored, not the "
-  "level requested.")
-
-h2("Running underneath all of it")
-
-p("Every step writes a hash-chained audit event: each row's hash covers the "
-  "previous row's, and PostgreSQL rejects UPDATE and DELETE on the table outright. "
-  "That chain is printed into the Certificate of Completion, which then goes "
-  "inside the sealed, timestamped PDF - so the record of what happened and the "
-  "document itself end up cross-witnessing each other.")
-
-story.append(PageBreak())
-
-# ---------------------------------------------------------------- Q1
-
-h1("4. Question one: tech stack")
+h1("3. Question one: tech stack")
 
 table(
     ["Layer", "Choice"],
     [
         ["Admin and signer UI", "React 19, TypeScript, Vite 8, Tailwind 4, React Router 7"],
-        ["PDF rendering in the browser", "pdf.js 6 (pdfjs-dist)"],
-        ["API", "Laravel 13, PHP 8.3, Sanctum"],
+        ["PDF rendering in the browser", "pdf.js 6"],
+        ["API", "Laravel 13, PHP 8.3+, Sanctum"],
         ["Database", "PostgreSQL 16"],
-        ["Queue and cache", "Redis 7 (predis)"],
-        ["Object storage", "S3, with MinIO in development"],
-        ["Email", "SMTP - Mailpit locally, SES or Postmark in production"],
+        ["Queue and cache", "Redis 7"],
+        ["Object storage", "S3-compatible, or local disk"],
+        ["Email", "SMTP, configured from the admin interface"],
         ["<b>PAdES sealing service</b>", "<b>Python 3.12, FastAPI, pyHanko 0.36</b>"],
         ["PDF composition", "pypdf, reportlab, Pillow"],
         ["Trusted timestamps", "RFC 3161 - DigiCert"],
-        ["Certificates", "OpenSSL dev CA publishing a CRL; a commercial CA or "
+        ["Certificates", "OpenSSL CA publishing a CRL; a commercial CA or "
                          "CCA-licensed ESP in production"],
-        ["Orchestration", "Docker Compose"],
-        ["Tests", "PHPUnit (API), Python integration scripts, end-to-end ceremony runner"],
+        ["Orchestration", "Docker Compose locally; nginx, PHP-FPM and systemd in production"],
+        ["Tests", "PHPUnit, Python integration scripts, end-to-end ceremony runner"],
     ],
-    [W * 0.30, W * 0.70],
+    [W * 0.28, W * 0.72],
 )
 
-# ---------------------------------------------------------------- Q2
+p("Three processes run: a React single-page app, a Laravel API, and a Python "
+  "sealing service the API calls over a private network with no public ingress.")
 
-h1("5. Question two: why this stack, and why not the alternatives")
+h1("4. Question two: why this stack, and why not the alternatives")
 
 h2("Laravel for the API")
 p("The feature list is almost exactly Laravel's standard equipment: queues for "
   "the sealing pipeline, mail with an SES driver, an S3 storage abstraction, "
-  "Sanctum tokens, authorisation policies, a scheduler for expiry sweeps. None of "
-  "that had to be built. It is also the framework I have shipped production work "
-  "in, so review effort went into the signing logic rather than into learning a "
-  "framework.")
+  "Sanctum tokens, authorisation policies, and a scheduler for retention and "
+  "expiry sweeps. None of that had to be built. It is also the framework I have "
+  "shipped production work in, so effort went into the signing logic rather than "
+  "into learning a framework.")
 
 h2("React for the interface")
 p("Two screens carry real interaction state: the field-placement editor, with "
@@ -395,36 +293,32 @@ table(
          "them requires the <b>commercial</b> FPDI PDF-Parser add-on."],
         ["TCPDF setSignature()",
          "Produces only a basic adbe.pkcs7.detached signature - no PAdES "
-         "subfilter, no DSS dictionary, no document-timestamp chain. "
-         "Structurally incapable of exceeding B-B."],
+         "subfilter, no DSS dictionary, no document-timestamp chain. Structurally "
+         "incapable of exceeding B-B."],
         ["SetaPDF-Signer",
          "Implements PAdES properly. Commercially licensed."],
         ["<b>pyHanko</b> (Python)",
-         "Open source, covers B-B, B-T, B-LT and <b>B-LTA</b> with full "
-         "long-term validation."],
+         "Open source, covers B-B, B-T, B-LT and <b>B-LTA</b> with full long-term "
+         "validation."],
     ],
     [W * 0.24, W * 0.76],
 )
 
 p("So the choice was: buy a licence, ship a weaker signature while describing it "
   "as something it is not, or add roughly 200 lines of Python behind one internal "
-  "HTTP call. Only the last option delivers what was asked for, at no licence "
-  "cost, with the cryptography handled by a library that specialises in it. The "
-  "service is small and stateless - it holds no database credentials and takes "
-  "bytes in, returning sealed bytes.")
+  "HTTP call. Only the last delivers what was asked for, at no licence cost, with "
+  "the cryptography handled by a library that specialises in it.")
 
 h2("PostgreSQL rather than MySQL")
 p("The jsonb type with GIN indexing keeps audit payloads queryable without a "
   "second denormalised table, and CHECK constraints are expressive enough to "
   "enforce the envelope state machine and field-coordinate bounds in the database "
   "rather than only in application code.")
-
 p("One caveat found in practice: <b>jsonb does not preserve object key order</b>, "
   "returning keys sorted by length then bytewise. That broke the audit hash chain "
-  "on the first run, because a payload written in one order re-serialised in "
+  "on its first real run, because a payload written in one order re-serialised in "
   "another and the recomputed hash no longer matched. The fix was to canonicalise "
-  "- recursively sorting keys - before hashing, the same idea as RFC 8785. The "
-  "plain json type would preserve the text but lose the indexing.")
+  "- recursively sorting keys - before hashing, the same idea as RFC 8785.")
 
 h2("PostgreSQL rather than MongoDB")
 p("The domain is inherently relational - envelope, recipient, field, value - and "
@@ -435,19 +329,21 @@ p("The domain is inherently relational - envelope, recipient, field, value - and
 h2("Object storage rather than database blobs")
 p("PDFs run from 100 KB to 20 MB. Blobs bloat backups, slow replication and "
   "cannot be streamed. S3 also brings versioning, lifecycle rules, server-side "
-  "encryption and pre-signed URLs at no additional effort.")
+  "encryption and pre-signed URLs. The disk is configurable, so a single-server "
+  "deployment can use local storage with no code change.")
 
 h2("Queues rather than synchronous sealing")
-p("Sealing involves a timestamp-authority round trip and revocation fetching. It "
-  "must be retryable with backoff, not blocking an HTTP request.")
+p("Sealing makes a network round trip to a timestamp authority and fetches "
+  "revocation data. It must be retryable with backoff, not blocking a request.")
 
 h2("Why not Next.js")
-p("A reasonable stack, but it would have meant learning a framework and "
-  "implementing cryptography at the same time. The Python service is required "
-  "regardless, so the single-language argument for a Node backend disappears.")
+p("A good stack, but it would have meant learning a framework and implementing "
+  "cryptography at the same time. The Python service is required regardless, so "
+  "the single-language argument disappears.")
 
 h2("Why not Node and Express")
-p("Queues, mail, storage and authentication would all have to be assembled by hand.")
+p("Queues, mail, storage and authentication would all have to be assembled by "
+  "hand.")
 
 h2("Why not sign in the browser with WebCrypto")
 p("The private key would have to reach the client. That is unacceptable key "
@@ -457,12 +353,68 @@ p("The private key would have to reach the client. That is unacceptable key "
 
 story.append(PageBreak())
 
-# ---------------------------------------------------------------- Q3
+h1("5. Working flow")
+
+p("Three stages. The first two are interactive; the third runs on a queue.")
+
+h2("Stage one - the admin prepares and sends")
+p("<b>Upload.</b> The magic bytes are checked, then the file is handed to the "
+  "Python service where a real parser confirms it opens, is not "
+  "password-protected, and reports its page count. Only then is it stored under a "
+  "random key - never the user's filename - and its SHA-256 recorded. That hash "
+  "is the anchor everything downstream is compared against.")
+p("<b>Field placement.</b> Coordinates are stored as fractions of the page "
+  "between 0 and 1 with a top-left origin, not pixels, so a placement survives "
+  "zoom, screen DPI and the later conversion into PDF user space. Every field "
+  "belongs to exactly one recipient, which is what makes the rule that nobody can "
+  "fill another signer's field enforceable rather than merely hidden in the "
+  "interface.")
+p("<b>Send.</b> Each recipient gets a 256-bit random token. Only its SHA-256 is "
+  "stored, so a database dump yields no working links.")
+
+h2("Stage two - the signer completes the ceremony")
+p("Signers have no account, so every request re-establishes who is calling from "
+  "the token alone. The token is looked up by hash and compared in constant time.")
+p("<b>Passcode.</b> Six digits, hashed with bcrypt rather than SHA-256 - a "
+  "million possibilities would fall to an offline sweep against a fast hash - "
+  "expiring in ten minutes and locking out after five failures. The document is "
+  "not served until this passes: possession of a forwarded link is not enough.")
+p("<b>Consent.</b> Records the disclosure version and a SHA-256 of the exact text "
+  "shown, not a boolean. The question in a dispute is never whether someone "
+  "consented but to what wording.")
+p("<b>Optional evidence.</b> If the sender enabled it, dialogs ask for the "
+  "signer's location and a photograph. Both are declinable, both decisions are "
+  "recorded, and neither blocks signing.")
+p("<b>Signing.</b> Typed names are rendered to PNG on the server, so the artefact "
+  "sealed into the document does not depend on which fonts the signer happened to "
+  "have installed. Uploaded images are fully decoded and re-encoded, which strips "
+  "EXIF. Clicking the final button is logged as its own intent event, separate "
+  "from having filled the fields in - that distinction is what the ESIGN Act and "
+  "UETA actually turn on. The token is then burned.")
+
+h2("Stage three - the server seals and delivers")
+p("Queued, with widening backoff, because sealing makes a network round trip that "
+  "can fail for reasons nothing to do with the signer.")
+p("The job reads field coordinates from the database, never from the finishing "
+  "request, so a signer cannot move their own signature elsewhere in the document "
+  "on the way out. It builds the certificate payload from the audit trail, then "
+  "makes a single call to the Python service, which composites the marks, appends "
+  "the evidence page and applies the seal in one pass. The level actually "
+  "achieved is stored, not the level requested.")
+
+h2("Running underneath all of it")
+p("Every step writes a hash-chained audit event. Each row's hash covers the "
+  "previous row's, and PostgreSQL rejects UPDATE and DELETE outright. That chain "
+  "is printed into the Certificate of Completion, which then goes inside the "
+  "sealed, timestamped PDF - so the record of what happened and the document "
+  "itself end up cross-witnessing each other.")
+
+story.append(PageBreak())
 
 h1("6. Question three: competition and cost")
 
-note("List prices verified August 2026. Annual billing unless stated; monthly "
-     "billing typically carries a premium. Amounts in USD unless marked INR.")
+note("List prices verified August 2026. Annual billing unless stated. Amounts in "
+     "USD unless marked INR.")
 
 h2("Global")
 table(
@@ -470,12 +422,12 @@ table(
     [
         ["DocuSign",
          "Personal $10/mo ($15 monthly, 5 envelopes/mo); Standard $25/user/mo "
-         "($45 monthly); Business Pro $40/user/mo ($65 monthly); Enterprise custom",
+         "($45 monthly); Business Pro $40/user/mo ($65 monthly)",
          "Annual plans capped near 100 envelopes per user per year. SMS delivery "
          "from $0.40 per send, ID verification from $2.50 per attempt"],
         ["Adobe Acrobat Sign",
          "Standard Individual $12.99/user/mo; Pro Individual $19.99; Standard "
-         "Teams $14.99; Pro Teams $23.99; Acrobat Studio Teams $29.99",
+         "Teams $14.99; Pro Teams $23.99",
          "Standard team capped near 150 transactions per user per year; monthly "
          "billing around 50 percent premium"],
         ["Dropbox Sign", "From about $15/user/mo; free tier of 3 documents a month",
@@ -509,7 +461,7 @@ h2("Open source - the real alternative to building from scratch")
 table(
     ["Product", "Price"],
     [
-        ["DocuSeal (AGPLv3)", "Self-host free; managed hosting from about EUR 9 per month per instance"],
+        ["DocuSeal (AGPLv3)", "Self-host free; managed hosting from about EUR 9 per month"],
         ["Documenso (AGPLv3)", "Self-host free; cloud from about $30/mo; has PAdES support"],
         ["OpenSign (AGPLv3)", "Self-host free; cloud from about $30/mo"],
     ],
@@ -528,12 +480,10 @@ table(
     ],
     [W * 0.45, W * 0.55],
 )
-
 p("That looks like a clear win until the build is priced in: roughly 120 to 200 "
-  "hours of engineering, plus ongoing patching, certificate renewal, timestamp-"
-  "authority monitoring and backup verification. Realistic break-even is "
-  "<b>twelve to twenty-four months</b>.")
-
+  "hours of engineering, plus ongoing patching, certificate renewal, "
+  "timestamp-authority monitoring and backup verification. Realistic break-even "
+  "is <b>twelve to twenty-four months</b>.")
 p("<b>The honest conclusion:</b> build in-house when signing is a feature of your "
   "product - embedded, white-labelled, per-transaction economics, deeply "
   "integrated with your own workflow and identity system. Buy when it is an "
@@ -542,8 +492,6 @@ p("<b>The honest conclusion:</b> build in-house when signing is a feature of you
   "than the engineer-months.")
 
 story.append(PageBreak())
-
-# ---------------------------------------------------------------- Q4
 
 h1("7. Question four: security of building in-house versus buying")
 
@@ -558,17 +506,17 @@ bullets([
     "<b>Key custody.</b> The signing key lives in your own KMS or HSM. No third "
     "party can be compelled, phished or tricked into signing on your behalf.",
     "<b>Evidence ownership.</b> The audit trail is in your database in a format "
-    "you control and can export. If a vendor account lapses or is terminated, "
-    "their audit trails go with it - precisely when litigation makes you want them.",
+    "you control and can export. If a vendor account lapses, their audit trails "
+    "go with it - precisely when litigation makes you want them.",
     "<b>Access-control fidelity.</b> Signing permissions ride your existing roles "
-    "and SSO. No per-seat pricing quietly encouraging shared accounts, which is a "
-    "genuine security anti-pattern created by a commercial model.",
+    "and SSO. No per-seat pricing quietly pushing teams into account-sharing, "
+    "which is a real security anti-pattern created by a commercial model.",
     "<b>No third-party code in the ceremony.</b> Vendor signing pages load "
     "analytics and CDN assets; a supply-chain compromise there sits directly "
     "inside the signing flow. This build serves its own fonts for that reason.",
     "<b>Deletion is real.</b> You can guarantee hard deletion and a defined "
-    "retention policy. SaaS deletion is frequently soft-delete plus backups for "
-    "several years.",
+    "retention policy - and here it is enforced by a scheduled command, not "
+    "merely described in a privacy notice.",
     "<b>No secondary use.</b> Your documents are not subject to a vendor's terms "
     "covering analytics or model training.",
 ])
@@ -579,8 +527,8 @@ bullets([
     "timestamp-authority availability, key rotation and backup-integrity testing. "
     "Permanently.",
     "You have no SOC 2 Type II, ISO 27001, HIPAA BAA or 21 CFR Part 11 "
-    "attestation. Enterprise buyers ask for these, and \"we built it ourselves\" "
-    "is not an answer.",
+    "attestation. Enterprise buyers ask for these, and saying you built it "
+    "yourself is not an answer.",
     "In a dispute, DocuSign's audit trail carries two decades of precedent and "
     "available expert witnesses. Yours is novel, and you must be prepared to "
     "prove your own process rather than point at an established one.",
@@ -593,12 +541,10 @@ h2("The position this system takes")
 p("A hybrid. Own the interface, the storage, the workflow and the evidence; "
   "delegate identity binding and certificate issuance to a licensed authority. "
   "The code reflects this: a sealer seam lets the same envelope flow route either "
-  "to the in-house PAdES sealer or to a CCA-licensed ESP such as Digio, Leegality "
-  "or NSDL-Protean, without touching anything above it.")
+  "to the in-house PAdES sealer or to a CCA-licensed ESP, without touching "
+  "anything above it.")
 
 story.append(PageBreak())
-
-# ---------------------------------------------------------------- Q5
 
 h1("8. Question five: core concepts, and what a signature captures")
 
@@ -619,7 +565,8 @@ p("Assurance tiers are jurisdiction-specific. Under eIDAS in the EU: simple, "
 
 p("A consequence worth stating plainly: <b>in the US the evidence, not the "
   "cryptography, is what makes a signature enforceable.</b> That is why the audit "
-  "trail in this system is treated as a first-class artefact rather than a log file.")
+  "trail in this system is treated as a first-class artefact rather than a log "
+  "file.")
 
 h2("What actually happens cryptographically")
 bullets([
@@ -633,8 +580,7 @@ bullets([
     "revision of the document survives intact inside the same file.",
     "A verifier recomputes the hash over the byte range and checks it against the "
     "signature. Any changed byte breaks it.",
-    "Trust comes separately, from the certificate chaining to a trusted root - "
-    "Adobe AATL, the EU Trusted List, India's CCA or the operating system store - "
+    "Trust comes separately, from the certificate chaining to a trusted root, "
     "with revocation checked by OCSP or CRL.",
 ], numbered=True)
 
@@ -661,57 +607,57 @@ table(
     [W * 0.10, W * 0.42, W * 0.48],
 )
 
-p("<b>This system produces B-LTA</b>, confirmed independently by pyHanko's "
-  "command-line validator. A practical finding worth recording: B-LT and B-LTA "
-  "require embeddable revocation data, and a bare self-signed certificate has no "
-  "CRL distribution point, so it cannot reach those levels at all. With the CRL "
-  "unreachable an otherwise perfect signature validates as INVALID; with it "
-  "published, the same file validates cleanly. Publishing revocation data is not "
-  "an optional extra.")
+p("<b>This system produces B-LTA.</b> A practical finding worth recording: B-LT "
+  "and B-LTA require embeddable revocation data, and a bare self-signed "
+  "certificate has no CRL distribution point, so it cannot reach those levels at "
+  "all. With the CRL unreachable an otherwise perfect signature validates as "
+  "INVALID; with it published, the same file validates cleanly. Publishing "
+  "revocation data is not an optional extra.")
 
 h2("What the ceremony captures - the evidence package")
 table(
     ["Category", "Captured", "Why it matters"],
     [
-        ["Identity", "Name, email, phone, IP - and how they were verified: link "
-                     "possession, email OTP, SMS, knowledge-based questions, Aadhaar or ID match",
-         "\"Verified\" without a method is not evidence of anything"],
-        ["Intent", "An explicit affirmative act, recorded as its own event, "
-                   "distinct from filling fields in",
-         "UETA and ESIGN both turn on the signature being executed with intent to sign"],
-        ["Consent", "Consent to transact electronically, with the disclosure "
-                    "version and a hash of the exact text, plus timestamp and IP",
+        ["Identity", "Name, email, phone, IP - and how they were verified",
+         "Recording that someone was verified, without the method, is not evidence "
+         "of anything"],
+        ["Intent", "An explicit affirmative act, recorded as its own event",
+         "UETA and ESIGN turn on the signature being executed with intent to sign"],
+        ["Consent", "The disclosure version and a hash of the exact text, with "
+                    "timestamp and IP",
          "The question is never whether they consented, but to what wording"],
-        ["Attribution", "IP, user agent, session, which token was used, every "
+        ["Attribution", "IP, user agent, which token was used, every "
                         "authentication event including failures",
          "Failed attempts are evidence too"],
         ["Timeline", "Sent, delivered, opened, viewed, field completed, signed, "
                      "completed - each in UTC",
          "Establishes sequence, not just outcome"],
-        ["Document integrity", "SHA-256 of the file as uploaded, after signatures "
-                               "are applied, and after sealing",
+        ["Document integrity", "SHA-256 as uploaded, after signatures are "
+                               "applied, and after sealing",
          "Proves the starting point as well as the end state"],
         ["The artefact", "The signature image, whether drawn, uploaded or typed, "
-                         "the font if typed, and its page and coordinates",
+                         "the font, and its page and coordinates",
          "The mark itself is part of the record"],
+        ["Location (optional)", "Coordinates and accuracy, with the consent decision",
+         "Signer-reported, never server-observed"],
+        ["Photograph (optional)", "An image captured at signing, with the consent "
+                                  "decision",
+         "Evidence of presence, explicitly not identity verification"],
         ["Trusted time", "An RFC 3161 token from an independent authority",
          "Never the application server's clock"],
-        ["Tamper evidence", "A hash-chained audit log and the PDF's own "
-                            "cryptographic seal",
-         "The record of events and the document are separately verifiable"],
-        ["Certificate of Completion", "A human-readable PDF appended to the "
-                                      "document summarising all of the above",
-         "In practice this is the page that actually gets read in a dispute"],
+        ["Tamper evidence", "A hash-chained audit log and the PDF's own seal",
+         "The record and the document are separately verifiable"],
+        ["Certificate of Completion", "A human-readable PDF appended to the document",
+         "In practice this is the page that gets read in a dispute"],
     ],
     [W * 0.17, W * 0.45, W * 0.38],
 )
 
 h2("On the limits of a hash chain")
-p("Each audit event's hash covers the previous event's, so editing, deleting or "
-  "reordering any event invalidates every hash that follows. An artisan command "
-  "recomputes the whole chain and exits non-zero on a break, and PostgreSQL "
-  "triggers reject UPDATE and DELETE outright.")
-
+p("Each event's hash covers the previous event's, so editing, deleting or "
+  "reordering any event invalidates every hash that follows. A scheduled command "
+  "recomputes the whole chain, and PostgreSQL triggers reject UPDATE and DELETE "
+  "outright.")
 p("It is worth being precise about what that achieves. A hash chain makes "
   "tampering <b>detectable</b>, not <b>impossible</b> - an attacker with write "
   "access could rebuild the chain from the point of the edit onward. What closes "
@@ -722,100 +668,167 @@ p("It is worth being precise about what that achieves. A hash chain makes "
 
 story.append(PageBreak())
 
-# ---------------------------------------------------------------- proof
-
 h1("9. Security controls implemented")
 
 bullets([
     "Signing tokens are 256-bit and stored only as SHA-256, so a database dump "
     "yields no working links. Tokens are burned on completion.",
-    "A one-time passcode is required before the document is served; possession of "
-    "a forwarded link is not enough. Passcodes are bcrypt-hashed and lock out "
-    "after five failures.",
+    "A one-time passcode is required before the document is served. Passcodes are "
+    "bcrypt-hashed, expire in ten minutes, and lock out after five failures.",
+    "Rate limits are layered: per-IP throttles blunt automation, while the limits "
+    "that protect a specific signer are per-recipient. Per-IP limits are "
+    "deliberately loose because everyone behind one office network shares a "
+    "counter.",
     "Every field is scoped to its recipient in the query itself, so another "
-    "signer's field identifier resolves to nothing. Covered by an explicit "
-    "insecure-direct-object-reference test.",
-    "Uploaded images are fully decoded and re-encoded server-side, stripping EXIF "
-    "and anything else riding along with the pixels. PDFs are validated by a real "
+    "signer's field identifier resolves to nothing. Covered by an explicit test.",
+    "Uploaded images are decoded and re-encoded server-side, stripping EXIF - "
+    "including the GPS tags phone cameras write. PDFs are validated by a real "
     "parser, not by file extension or declared content type.",
     "The audit table rejects UPDATE and DELETE at the database level, and each "
     "row's hash covers the previous row's.",
     "The sealing service has no public ingress and authenticates every request "
     "with a shared-secret HMAC over the exact request body.",
-    "Login is throttled per email and IP pair, and answers identically for an "
-    "unknown account and a wrong password so it cannot be used to enumerate users.",
+    "Login is throttled per email-and-IP pair and answers identically for an "
+    "unknown account and a wrong password, so it cannot be used to enumerate "
+    "users.",
+    "Mail credentials are encrypted at rest and never returned by the API.",
 ])
 
-h1("10. Verifying it works")
+h1("10. Privacy: what is captured, and what is deleted")
 
-h2("End-to-end ceremony")
-code("./sign-service/.venv/Scripts/python.exe api/tests/e2e/ceremony.py")
-p("Drives the real HTTP API exactly as the SPA does: uploads, builds an envelope, "
-  "sends it, reads the signing link and passcode out of Mailpit, signs, waits for "
-  "the queue to seal, confirms the signed copy is delivered, then verifies the "
-  "result and probes the access controls. <b>46 checks, all passing.</b>")
+p("Location and photograph are both optional, consented, and enabled per "
+  "envelope. Declining is recorded as a decision, never blocks signing, and the "
+  "refusal button sits beside the other one at the same size.")
 
-h2("The signature is real")
-code("cd sign-service\n"
-     "./.venv/Scripts/pyhanko.exe sign validate --pretty-print \\\n"
-     "    --trust ../pki/out/ca.pem tmp/5-sealed.pdf")
-p("An independent validator, not this codebase, reports that the signature is "
-  "cryptographically sound, that the timestamp is backed by a trusted authority "
-  "(DigiCert SHA256 RSA4096 Timestamp Responder), and that the signature is "
-  "judged <b>VALID</b>. In Adobe Acrobat Reader, after trusting the development "
-  "CA certificate, the signature panel shows the document as signed with "
-  "long-term validation enabled.")
+h2("Photographs are sender-enabled, not always on")
+p("A face image is special-category data under GDPR Article 9 once used to "
+  "identify someone, carries heightened duties under India's DPDP Act, and is "
+  "actionable per violation under Illinois BIPA. Collecting it from every signer "
+  "regardless of what they are signing would be indefensible; collecting it when "
+  "the sender decides a particular document warrants it is a decision someone has "
+  "actually made.")
 
-h2("Tamper detection")
-code("cd sign-service\n"
-     "PKI_DIR=../pki/out ./.venv/Scripts/python.exe scripts/smoke_test.py")
-p("Seals a document, then changes one byte of page content and re-validates. The "
-  "altered file still opens perfectly and its signature reports as broken, which "
-  "is exactly the point. The same file run through the pyHanko CLI returns "
-  "<b>INVALID</b>.")
+h2("Nothing is called identity verification")
+p("Without a government document, a face match against it and liveness "
+  "detection, a photograph establishes that someone was present and willing to be "
+  "photographed - not who they are. The certificate says so in those words. Real "
+  "identity verification belongs with a licensed provider such as Onfido or "
+  "Persona, which is the same buy-versus-build line argued in section 7.")
 
-h2("Audit chain and test suites")
-code("cd api && php artisan signdesk:verify-audit     # recomputes every chain\n"
-     "cd api && php artisan test                      # 27 tests\n"
-     "cd sign-service && ./.venv/Scripts/python.exe scripts/http_test.py   # 24 checks")
+h2("Retention is enforced, not merely described")
+p("A scheduled command runs daily: photographs are deleted after 90 days, "
+  "coordinates after 365, both configurable. Only the sensitive artefact goes - "
+  "the record that a photograph was requested and that the signer agreed or "
+  "refused is kept, because that is the part with evidential value and it holds "
+  "no personal data. The purge is written into the audit chain so nothing is "
+  "removed silently.")
 
-note("The PHP tests run against PostgreSQL rather than SQLite. The schema depends "
+note("One limitation stated plainly: a sealed document already delivered is "
+     "beyond recall. It carries its own copy and is tamper-evident, so nothing "
+     "can be removed from it. Retention here means that the system stops holding "
+     "the data, not that it ceases to exist - an inherent tension, since the "
+     "property that makes the evidence trustworthy is the same one that makes it "
+     "unretractable.")
+
+story.append(PageBreak())
+
+h1("11. Proof that it works")
+
+p("None of the following is self-assessment. The signature is validated by "
+  "pyHanko's command-line tool, which is not part of this codebase.")
+
+h2("Automated checks")
+table(
+    ["Suite", "Result"],
+    [
+        ["API tests (PHPUnit, against PostgreSQL)", "59 passing"],
+        ["End-to-end signing ceremony", "46 checks passing"],
+        ["Sealing service HTTP tests", "24 checks passing"],
+        ["Audit chain verification", "All chains verified"],
+    ],
+    [W * 0.55, W * 0.45],
+)
+
+note("The API tests run against PostgreSQL rather than SQLite. The schema depends "
      "on jsonb, GIN indexes and a plpgsql trigger, and testing against another "
      "engine would skip exactly the guarantees the tests exist to prove.")
 
-h1("11. Known limitations")
+h2("Independent validation of the signature")
+code("pyhanko sign validate --pretty-print --trust pki/out/ca.pem sealed.pdf")
+
+p("It reports that the signature is cryptographically sound, that the timestamp "
+  "is backed by a trusted authority - DigiCert SHA256 RSA4096 Timestamp Responder "
+  "- and that the signature is judged <b>VALID</b>. In Adobe Acrobat Reader, "
+  "after trusting the issuing certificate, the signature panel shows the document "
+  "as signed with long-term validation enabled.")
+
+h2("Tamper detection")
+p("A test seals a document, changes one byte of page content, and re-validates. "
+  "The altered file still opens perfectly and its signature reports as broken - "
+  "which is exactly the point. The same file through the pyHanko CLI returns "
+  "<b>INVALID</b>.")
+
+h1("12. Engineering notes")
+
+p("Bugs worth recording, because several were only reachable in production and "
+  "each one taught something.")
+
+bullets([
+    "<b>jsonb reorders object keys.</b> The audit hash chain broke on its first "
+    "real run: a payload written in one key order came back in another, "
+    "re-serialised differently, and the recomputed hash no longer matched. Fixed "
+    "by canonicalising keys before hashing. There is a regression test.",
+    "<b>Queued mailables cannot carry binary.</b> The signed-copy mailable held "
+    "the raw PDF as a job property; the payload failed to JSON-encode and the "
+    "signed copy silently never sent. The end-to-end suite passed anyway because "
+    "it did not check delivery - so an assertion was added.",
+    "<b>Laravel redirects unauthenticated guests to a login route</b> that does "
+    "not exist in an API-plus-SPA application. Any request without an "
+    "Accept: application/json header produced a 500 where a 401 belonged. "
+    "Invisible in development, immediate in production where crawlers open API "
+    "URLs directly.",
+    "<b>nginx does not know the .mjs extension.</b> pdf.js loads its worker via a "
+    "dynamic import, which browsers MIME-check strictly. Served as "
+    "application/octet-stream the browser refuses it, and the document never "
+    "renders. Rather than configure every future host, the worker is now copied "
+    "and served as .js at build time.",
+    "<b>A React ref is null on the line after setState.</b> The camera preview "
+    "stayed black because the media stream was assigned before the video element "
+    "had rendered. Found only by installing a fake camera and driving the real "
+    "component - testing the endpoint had proved nothing about the browser path.",
+    "<b>pdf.js needs a foreground tab.</b> Rendering is scheduled through "
+    "requestAnimationFrame, which browsers suspend while the document is hidden, "
+    "so the render promise never resolves in a background tab.",
+])
+
+h1("13. Known limitations")
 
 bullets([
     "<b>The development CA is not a public trust anchor.</b> Adobe shows the "
     "signature as valid only after its certificate is trusted manually. "
-    "Production needs a certificate from a commercial authority, or a "
+    "Production needs a commercial document-signing certificate, or a "
     "CCA-licensed ESP for recognition under IT Act section 3A. The sealer seam "
     "exists for exactly that swap.",
-    "<b>Horizon is not used.</b> It requires the pcntl and posix extensions, "
-    "which are unavailable on Windows; the standard queue worker covers the same "
-    "ground here.",
-    "<b>No Vitest suite for the SPA.</b> The interactive behaviour that matters - "
-    "canvas drawing and pdf.js rendering - needs heavy browser mocking to "
-    "unit-test. Coverage came instead from the 46-check end-to-end run and a "
-    "manual walkthrough of both portals. This is a real gap, not a design choice.",
-    "<b>PDF rendering could not be confirmed in an automated browser.</b> pdf.js "
-    "schedules rendering through requestAnimationFrame, which never fires in a "
-    "browser pane that is not compositing, so the render promise cannot resolve "
-    "there. Everything else in the signer flow was verified interactively.",
-    "Single-signer routing is implemented and tested; multi-signer routing order "
-    "is enforced server-side but has not been exercised end to end.",
+    "<b>No per-signer digital signature.</b> The seal is an organisational one, "
+    "as with DocuSign and Adobe Sign - the signer is bound by the evidence "
+    "package, not by a key they control. A signer-held key requires a CA or ESP.",
+    "<b>No unit-test suite for the single-page app.</b> The interactive behaviour "
+    "that matters needs heavy browser mocking; coverage came from the end-to-end "
+    "run and manual walkthroughs. A real gap, not a design choice.",
+    "<b>Multi-signer routing order</b> is enforced server-side but has not been "
+    "exercised end to end.",
+    "<b>Backups must include the storage directory.</b> With local disk, a "
+    "database backup alone loses every document, signature image and photograph.",
 ])
 
-h1("12. Sources")
+h1("Sources")
 note("Pricing and library capabilities checked August 2026. DocuSign and Adobe "
      "Acrobat Sign pricing via Signeasy and Costbench. SignNow and Dropbox Sign "
-     "comparison via Unkoa; Zoho Sign pricing from zoho.com. Leegality pricing via "
-     "productgrowth.in; India eSign comparison via signyu.com and peko.one. "
-     "Open-source alternatives via sliplane.io and eversign. pyHanko capabilities "
-     "from docs.pyhanko.eu and the project repository. FPDI limitations from "
-     "manuals.setasign.com. FreeTSA from freetsa.org.")
-
-
+     "via Unkoa; Zoho Sign from zoho.com. Leegality pricing via productgrowth.in; "
+     "India eSign comparison via signyu.com and peko.one. Open-source "
+     "alternatives via sliplane.io and eversign. pyHanko capabilities from "
+     "docs.pyhanko.eu and the project repository. FPDI limitations from "
+     "manuals.setasign.com.")
 def decorate(canvas, document) -> None:
     canvas.saveState()
     canvas.setFont("Helvetica", 7.5)
