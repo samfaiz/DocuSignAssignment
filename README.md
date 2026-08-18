@@ -45,10 +45,9 @@ DigiCert.
 Sections 4, 5, 7, 8 and 9 below answer those five questions. The rest describes
 what was actually built, which runs and is deployed.
 
-A PDF version of the written analysis is at
-[`docs/SignDesk-Assignment.pdf`](docs/SignDesk-Assignment.pdf), regenerable with
-`python docs/build_report.py`. Setup, deployment and the commands that verify
-the signature are in [DEPLOYMENT.md](DEPLOYMENT.md).
+A PDF version of this document, formatted for printing or sending on, is at
+[`docs/SignDesk-Assignment.pdf`](docs/SignDesk-Assignment.pdf) and is regenerable
+with `python docs/build_report.py`.
 
 ---
 
